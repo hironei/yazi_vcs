@@ -4,6 +4,12 @@
 
 ---
 
+## バグ修正（レビュー検出分、2026-07-29）
+
+- [ ] [#7](https://github.com/hironei/yazi_vcs/issues/7) — 混在一覧で先頭がファイルの場合、ディレクトリ配下の変更が集約表示されない
+- [ ] [#8](https://github.com/hironei/yazi_vcs/issues/8) — 初回fetch完了前の手動Status更新が、未保存のrootを非VCSとして扱う
+- [ ] [#9](https://github.com/hironei/yazi_vcs/issues/9) — Git/SVN結合テストがWindowsのcmd構文に固定され、Linux/macOSで実行できない
+
 ## 目視確認（ユーザー対応が必要）
 
 - [ ] 実際のYazi画面で状態記号の色・位置を確認する（TUIのため自動化不可）。動作確認用に `%APPDATA%\yazi\config` へ `vcs.yazi` をジャンクション接続済み、`yazi.toml`/`init.lua`/`keymap.toml` に設定追加済み
