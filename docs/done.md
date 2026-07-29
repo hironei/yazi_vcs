@@ -1,83 +1,17 @@
 # 完了記録
 
-日付降順ではなく、実施順（古い→新しい）で記録する。
+## 2026-07-29 — Issue #9/#10整理
 
----
+- Issue #9: Windowsパスの単一バックスラッシュをfile URLへ変換する回帰を修正
+- Issue #10: Issue #8後に不要となった`core-state.current_cwd`を削除
+- 回帰テストをテスト補助へ追加
 
-## 2026-07-29 — 要件定義の検証・修正
+## 2026-07-29 — vcs.yazi Phase 2（共通操作）実装
 
-- ユーザー提供の `yazi-vcs-plugin-requirements.md` を、Yazi 26.5.6 の実ソース（`yazi-runner`/`yazi-plugin`）・公式 `git.yazi` プラグイン・Git CLI の実測結果と突き合わせて検証
-- 実装不可能だった3点を修正: モジュール構成（サブディレクトリ不可→フラット構成）、ステータス取得契機（独自キャッシュ→Yaziのfetcher機構）、Git Commitの暗黙stage挙動
-- `--ignored=matching`、rename時のNULフィールド、`v`キー衝突、タイムアウト実現方式、外部diffのラッパー必須化などを追加・修正
-- `docs/requirements.md` として保存
-- コミット: `a7ecc56`
-
-## 2026-07-29 — vcs.yazi Phase 1（Status MVP）実装
-
-- SVN CLI（TortoiseSVN由来、1.14.5）・Lua 5.5（mluaの`lua55`featureに合わせてscoopでインストール）を実行環境に追加
-- Yaziの `require()` 制約（kebab-case・フラット構成のみ）を実ソースで確認したうえでモジュール設計を確定
-- 以下を実装（`vcs.yazi/`）:
-  - `core-path.lua` / `core-status.lua` / `core-detector.lua` の純粋ロジック（素のluaで単体テスト可能）
-  - `core-state.lua`（`ya.sync`永続ストレージ）、`core-notify.lua`
-  - `backend-git.lua`（porcelain v2 -z 解析、rename NULフィールド対応）
-  - `backend-svn.lua`（`svn status --xml` 解析。実測により判明したSVN固有仕様に対応: パスをそのまま返す、`<lock>`は要素、`--`終端必須）
-  - `main.lua`（fetcher登録、`Entity:children_add`による先頭列表示、手動refresh）
-  - `config.lua`、`README.md`、`LICENSE`
-- テスト: `tests/run.lua` で88件（純粋ロジック単体テスト＋実git/svnバイナリを使った結合テスト）が全件成功
-- 実Yazi環境（`%APPDATA%\yazi\config`）へジャンクション接続し、`yazi.toml`/`init.lua`/`keymap.toml`を設定。一時的な`ya.dbg`計装により、Gitリポジトリ・SVN作業コピー・非VCSディレクトリの3パターンで`fetch()`が実際にエラーなく完走することを確認（確認後に計装は削除）
-- コミット: `a6d2e4e`（ユーザー承認により作成、push未実施の状態）
-
-## 2026-07-29 — コードレビュー（`/code-review medium`）実施
-
-- 8つの観点（正確性3・再利用・簡略化・効率・altitude・CLAUDE.md準拠）で並列調査、候補を収集
-- 候補を検証パスにかけ、7件中: CONFIRMED 5件、PLAUSIBLE 1件、REFUTED 1件（fetch失敗時の通知欠如——公式git.yazi参照実装と同一挙動と判明し却下）、加えて「capabilities未使用」は意図的な先行実装と判定し除外
-- 最終的に6件をReportFindingsで報告
-
-## 2026-07-29 — レビュー結果をGitHub Issue化・push
-
-- リモート（`github.com/hironei/yazi_vcs`、public、単独オーナー）が空だったことを確認
-- レビュー指摘6件をIssue #1〜#6として登録（各Issueに再現コード・失敗シナリオ・修正案を記載）
-- ユーザーの明示的な許可を得て `git push -u origin main` を実行し、`a7ecc56`・`a6d2e4e` をリモートへ反映
-
-## 2026-07-29 — 設計書・作業記録の整備
-
-- `docs/design.md` を作成: as-built設計（モジュール構成、レイヤリング方針、データフロー、`ya.sync`の挙動、実装時に判明した仕様上の発見4件、バックエンド抽象化の歪み、状態優先度、テスト戦略、既知の制約）
-- `docs/todo.md` / `docs/done.md` を作成し、作業記録を分離
-
-## 2026-07-29 — GitHub Issue #1〜#6 修正
-
-- Issue #1: 内部 excluded を表示時の ignored へ変換
-- Issue #2: deep_merge で明示的な false 設定を保持
-- Issue #3: POSIXルートおよびドライブルート直下のパス境界を修正
-- Issue #4: aggregate_directories と ignore_externals を実際のfetch経路へ接続
-- Issue #5: Git/SVN backendの fetch() 返り値を (changed, excluded, err) へ統一
-- Issue #6: SVNの property_modified を external より優先
-- 各Issueの再発条件を純粋Luaテストへ追加
-
-## 2026-07-29 — GitHub Issue #7 修正
-
-- ディレクトリ状態集約を `job.files[1]` の種別に依存させず、設定有効時は全fetch結果へ適用
-- 混在一覧で先頭がファイルでも配下の変更を親ディレクトリへ集約できるよう修正
-
-## 2026-07-29 — GitHub Issue #8 修正
-
-- 手動status refreshで現在のURLからVCSルートを再検出するよう変更
-- 初回fetch前で状態キャッシュが未作成でも `refresh` を発行できるよう修正
-
-## 2026-07-29 — GitHub Issue #9 修正
-
-- 結合テストの一時ディレクトリ、作業ディレクトリ実行、パス引用、file URL、削除処理をOS別ヘルパーへ集約
-- Git/SVNの実CLI結合テストをWindowsとPOSIX shellの両方で実行できるよう修正
-
-## 2026-07-29 — README・設計書・ユーザーマニュアル整備
-
-- ルート `README.md` にプロジェクト概要、最小設定、テスト、制約を追加
-- `docs/design.md` を現行 Phase 1 実装と Issue #7〜#9 対応後の構造へ更新
-- `docs/users-manual.md` にインストール、設定、運用、状態記号、トラブルシュートを追加
-
-## 2026-07-29 — 2回目のコードレビュー実施（Issue #7〜#9 対応コミット群）
-
-- `main.lua`／`core-state.lua`（Issue #7・#8 修正）と `docs/design.md` の整合性を確認、問題なし
-- `lua tests/run.lua` を実行し、Issue #9 の修正コミット（`1a28714`）が導入した `tests/support.lua` の `to_file_url()` に回帰バグを発見（Windowsで単一バックスラッシュを変換できず、SVN結合テストが `svn checkout` で失敗。`98 passed, 2 failed` を実測）
-- `grep` により、Issue #8 修正で呼び出し元を失った `core-state.current_cwd` が未使用のまま残っていることを発見
-- Issue #9 を再オープンし回帰の再現手順・修正案をコメント、新規に Issue #10 を起票
+- `core-runner.lua`: 引数配列による外部コマンド実行、標準出力／標準エラー、終了コード、タイムアウト、`ui.hide()`による対話実行
+- `core-targets.lua`: selected → hovered → currentの対象決定、root境界検証、未追跡・ignored対象のDiscard除外
+- `core-commands.lua`: Git／SVNのUpdate、Commit、CLI Diff、CLI Log、Discard引数構築
+- `actions.lua`: Update、Commit（エディタ・UTF-8一時ファイル・stage挙動確認）、pager表示のDiff／Log、確認付きDiscard、実行後refresh
+- `core-state.lua`: 操作中の同一root競合抑止
+- 設定へeditor／pager／update／commit／discard／runnerを追加
+- 純粋Luaの対象選択・引数・runner補助テストを追加

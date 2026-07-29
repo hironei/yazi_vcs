@@ -1,110 +1,89 @@
 # yazi_vcs
 
-Yazi で Git と Subversion の作業状態をファイル一覧の先頭列へ表示する
-`vcs.yazi` プラグインです。現在は Phase 1（Status MVP）で、リポジトリを
-自動判定し、変更状態の取得・表示・手動更新を提供します。
+Yaziのファイル一覧へGit／Subversionの状態を表示し、共通操作を実行する
+`vcs.yazi`プラグインです。Phase 2ではStatus MVPに加え、Update、Commit、CLI
+Diff、CLI Log、Discardを実装しています。
 
-## 現在の状態
+## 対応環境
 
-実装済み:
+- Yazi 26.5.6以降
+- Git 2.30以降、SVN 1.9以降
+- Linux、macOS、Windows、WSL
 
-- Git / SVN リポジトリの自動判定
-- Git porcelain v2 と SVN `status --xml` の解析
-- modified、added、deleted、renamed、untracked、ignored、conflict などの表示
-- ディレクトリへの子孫状態の集約
-- Git の ignored ディレクトリと SVN の property/lock 状態の表示
-- Yazi fetcher による非同期取得と手動 refresh
+## 設定
 
-未実装（Phase 2 以降）:
-
-- Update、Commit、Diff、Log、Discard
-- Git Push、Branch 操作、Switch
-- 外部 diff / log ビューアと Windows GUI ツール連携
-
-## 必要な環境
-
-- Yazi 26.5.6 以降
-- Git 2.30 以降（Git リポジトリを使う場合）
-- SVN 1.9 以降（SVN 作業コピーを使う場合）
-- Linux、macOS、Windows、または WSL
-
-## インストール（ローカル開発版）
-
-まだパッケージレジストリへ公開していないため、プラグインディレクトリを
-Yazi の設定へコピーまたはリンクします。
-
-```bash
-# Linux / macOS / WSL
-mkdir -p ~/.config/yazi/plugins
-ln -s /path/to/yazi_vcs/vcs.yazi ~/.config/yazi/plugins/vcs.yazi
-```
-
-Windows の場合は `%APPDATA%\yazi\config\plugins\vcs.yazi` へ
-`vcs.yazi` をコピーするか、ディレクトリジャンクションを作成します。
-
-詳細な設定と使い方は [ユーザーマニュアル](docs/users-manual.md) を参照してください。
-
-## 最小設定
-
-`~/.config/yazi/yazi.toml` に fetcher を登録します。この設定がないと
-プラグインは読み込まれても状態取得が実行されません。
+fetcher登録は必須です。
 
 ```toml
 [[plugin.prepend_fetchers]]
-id    = "vcs"
-url   = "*"
-run   = "vcs"
+id = "vcs"
+url = "*"
+run = "vcs"
 group = "vcs"
 
 [[plugin.prepend_fetchers]]
-id    = "vcs"
-url   = "*/"
-run   = "vcs"
+id = "vcs"
+url = "*/"
+run = "vcs"
 group = "vcs"
 ```
 
-`~/.config/yazi/init.lua`:
-
-```lua
-require("vcs"):setup()
-```
-
-手動更新用に `~/.config/yazi/keymap.toml` へ追加します。
+`init.lua`では`require("vcs"):setup()`を呼びます。Phase2のキー例:
 
 ```toml
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "s" ]
-run  = "plugin vcs -- status"
-desc = "Refresh VCS status"
+on = [ "<C-g>", "u" ]
+run = "plugin vcs -- update"
+desc = "VCS update"
+
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "c" ]
+run = "plugin vcs -- commit"
+desc = "VCS commit"
+
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "d" ]
+run = "plugin vcs -- diff"
+desc = "VCS diff"
+
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "l" ]
+run = "plugin vcs -- log"
+desc = "VCS log"
+
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "r" ]
+run = "plugin vcs -- discard"
+desc = "Discard local changes"
 ```
 
-## ドキュメント
+対象は選択中の複数ファイル、hover中のファイル、現在ディレクトリの順です。
+Commitは既定で選択パスだけをGitへ渡し、そのパスだけが暗黙stageされます。
+`commit.git_mode = "staged"`ではstage済み内容だけをコミットします。Discardは
+確認を行い、未追跡・ignoredファイルを削除しません。
 
-- [ユーザーマニュアル](docs/users-manual.md)
-- [as-built 設計書](docs/design.md)
-- [要件定義](docs/requirements.md)
-- [プラグイン README](vcs.yazi/README.md)
-- [TODO](docs/todo.md) / [完了記録](docs/done.md)
+```lua
+require("vcs"):setup({
+  editor = { command = "nvim", args = {}, wait = true },
+  pager = { command = "less", args = { "-R" } },
+  runner = { timeout_ms = 30000 },
+  commit = { git_mode = "paths", allow_empty_message = false },
+})
+```
 
-## テスト
+## 検証
 
 ```bash
 cd vcs.yazi
 lua tests/run.lua
 ```
 
-純粋 Lua の単体テストに加え、PATH に `git` / `svn` があれば一時リポジトリを
-使った結合テストも実行します。結合テストは Windows と POSIX shell の両方に
-対応しています。実 Yazi の描画、色、既存 `git.yazi` との同時利用は別途
-目視確認が必要です。
+実Yaziの描画、端末占有、エディタ／pager、Windows／WSLの実操作は別途目視確認が必要です。
+Git Push、Branch、Switch、外部Diff／LogはPhase 3以降です。
 
-## 制約と安全性
+## ドキュメント
 
-Phase 1 は status の読み取りと表示だけを行います。Commit、Discard、Push などの
-破壊的操作はまだ提供していません。認証情報を取得・保存・通知する機能もありません。
-SVN の external / obstructed / incomplete 状態と TUI 上の最終的な見た目は、
-実作業コピーでの追加確認が必要です。
-
-## ライセンス
-
-MIT License（[vcs.yazi/LICENSE](vcs.yazi/LICENSE)）
+- [要件定義](docs/requirements.md)
+- [設計書](docs/design.md)
+- [ユーザーマニュアル](docs/users-manual.md)
+- [TODO](docs/todo.md) / [完了記録](docs/done.md)

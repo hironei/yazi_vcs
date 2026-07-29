@@ -1,12 +1,5 @@
 -- tests/support.lua
--- Minimal assertion + reporting harness for the plain-`lua` test suite.
--- Run via `tests/run.lua`, which also aliases Yazi's `require(".foo")`
--- relative-module syntax to plain Lua `require("foo")` so production
--- files can be loaded unmodified (see requirements §5.2/§5.5 on why
--- pure logic is split from Yazi-API-touching files: only the former is
--- loadable here at all).
 local M = { pass = 0, fail = 0 }
-
 M.is_windows = package.config:sub(1, 1) == "\\"
 
 function M.shell_quote(value)
@@ -18,8 +11,7 @@ function M.shell_quote(value)
 end
 
 function M.path_join(left, right)
-	local separator = M.is_windows and "\\" or "/"
-	return left .. separator .. right
+	return left .. (M.is_windows and "\\" or "/") .. right
 end
 
 function M.run_in_dir(dir, command)
@@ -35,19 +27,17 @@ end
 function M.temp_dir()
 	local dir = os.tmpname()
 	os.remove(dir)
-	local mkdir = M.is_windows and "mkdir " or "mkdir -p "
-	os.execute(mkdir .. M.shell_quote(dir))
+	os.execute((M.is_windows and "mkdir " or "mkdir -p ") .. M.shell_quote(dir))
 	return dir
 end
 
 function M.remove_tree(dir)
-	local command = M.is_windows and "rmdir /s /q " or "rm -rf -- "
-	return os.execute(command .. M.shell_quote(dir))
+	return os.execute((M.is_windows and "rmdir /s /q " or "rm -rf -- ") .. M.shell_quote(dir))
 end
 
 function M.to_file_url(path)
 	if M.is_windows then
-		return "file:///" .. path:gsub("\\\\", "/")
+		return "file:///" .. path:gsub("\\", "/")
 	end
 	return "file://" .. path
 end
@@ -65,9 +55,7 @@ local function dump(v, seen)
 	for k in pairs(v) do
 		keys[#keys + 1] = k
 	end
-	table.sort(keys, function(a, b)
-		return tostring(a) < tostring(b)
-	end)
+	table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
 	local parts = {}
 	for _, k in ipairs(keys) do
 		parts[#parts + 1] = tostring(k) .. "=" .. dump(v[k], seen)
@@ -77,27 +65,17 @@ end
 M.dump = dump
 
 local function deep_eq(a, b)
-	if type(a) ~= type(b) then
-		return false
-	end
-	if type(a) ~= "table" then
-		return a == b
-	end
+	if type(a) ~= type(b) then return false end
+	if type(a) ~= "table" then return a == b end
 	for k, v in pairs(a) do
-		if not deep_eq(v, b[k]) then
-			return false
-		end
+		if not deep_eq(v, b[k]) then return false end
 	end
 	for k in pairs(b) do
-		if a[k] == nil then
-			return false
-		end
+		if a[k] == nil then return false end
 	end
 	return true
 end
 
---- Record a pass/fail and print on failure. `where` should be
---- `debug.traceback("", 2)`-free — callers pass a short label.
 local function record(ok, label, detail)
 	if ok then
 		M.pass = M.pass + 1
@@ -112,11 +90,7 @@ function M.eq(actual, expected, label)
 end
 
 function M.deep_eq(actual, expected, label)
-	record(
-		deep_eq(actual, expected),
-		label or "deep_eq",
-		string.format("expected %s, got %s", dump(expected), dump(actual))
-	)
+	record(deep_eq(actual, expected), label or "deep_eq", string.format("expected %s, got %s", dump(expected), dump(actual)))
 end
 
 function M.truthy(v, label)
@@ -127,13 +101,9 @@ function M.falsy(v, label)
 	record(not v, label or "falsy", "expected falsy, got " .. dump(v))
 end
 
---- Report totals and exit non-zero if anything failed. Call once, after
---- every suite has run.
 function M.report()
 	print(string.format("%d passed, %d failed", M.pass, M.fail))
-	if M.fail > 0 then
-		os.exit(1)
-	end
+	if M.fail > 0 then os.exit(1) end
 end
 
 return M
