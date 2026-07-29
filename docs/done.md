@@ -74,3 +74,10 @@
 - ルート `README.md` にプロジェクト概要、最小設定、テスト、制約を追加
 - `docs/design.md` を現行 Phase 1 実装と Issue #7〜#9 対応後の構造へ更新
 - `docs/users-manual.md` にインストール、設定、運用、状態記号、トラブルシュートを追加
+
+## 2026-07-29 — 2回目のコードレビュー実施（Issue #7〜#9 対応コミット群）
+
+- `main.lua`／`core-state.lua`（Issue #7・#8 修正）と `docs/design.md` の整合性を確認、問題なし
+- `lua tests/run.lua` を実行し、Issue #9 の修正コミット（`1a28714`）が導入した `tests/support.lua` の `to_file_url()` に回帰バグを発見（Windowsで単一バックスラッシュを変換できず、SVN結合テストが `svn checkout` で失敗。`98 passed, 2 failed` を実測）
+- `grep` により、Issue #8 修正で呼び出し元を失った `core-state.current_cwd` が未使用のまま残っていることを発見
+- Issue #9 を再オープンし回帰の再現手順・修正案をコメント、新規に Issue #10 を起票

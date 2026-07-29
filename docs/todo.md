@@ -8,7 +8,8 @@
 
 - [x] [#7](https://github.com/hironei/yazi_vcs/issues/7) — 混在一覧で先頭がファイルの場合、ディレクトリ配下の変更が集約表示されない
 - [x] [#8](https://github.com/hironei/yazi_vcs/issues/8) — 初回fetch完了前の手動Status更新が、未保存のrootを非VCSとして扱う
-- [x] [#9](https://github.com/hironei/yazi_vcs/issues/9) — Git/SVN結合テストがWindowsのcmd構文に固定され、Linux/macOSで実行できない
+- [ ] [#9](https://github.com/hironei/yazi_vcs/issues/9) — （再オープン）修正コミット `1a28714` の `to_file_url()` がWindowsで単一バックスラッシュを変換できず、SVN結合テストが `svn checkout` で失敗する回帰
+- [ ] [#10](https://github.com/hironei/yazi_vcs/issues/10) — Issue #8 修正後、`core-state.current_cwd` が未使用のまま残存
 
 ## 目視確認（ユーザー対応が必要）
 
