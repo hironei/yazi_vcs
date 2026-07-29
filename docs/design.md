@@ -1,180 +1,178 @@
 # vcs.yazi 設計書（as-built）
 
-対象: `vcs.yazi/` Phase 1 実装（コミット `a6d2e4e`）。
+対象: `vcs.yazi/` Phase 1（Status MVP）実装。
 
-本書は「何を作るか」（[requirements.md](requirements.md)）に対して「実際どう作ったか」を記録する。要件定義時点の想定と実装時に判明した制約・実測結果が食い違う箇所は、その理由を明記する。
-
----
+この文書は、実装済みの構造・状態の流れ・テスト境界を記録します。実装していない
+Phase 2 以降の操作は、要件定義とユーザーマニュアルで区別して記載します。
 
 ## 1. モジュール構成
 
-Yazi の `require()` は `plugins/{plugin}.yazi/{entry}.lua` にのみ解決され、エントリ名は kebab-case（`[0-9a-z-]`のみ）、サブディレクトリ不可（`yazi-runner/src/loader/loader.rs::explode_id_parts` で検証済み。requirements.md §5.2）。このためディレクトリ階層ではなく **ファイル名のプレフィックスで論理グループを表現する** フラット構成にした。
+Yazi のプラグインローダーは `plugins/{plugin}.yazi/{entry}.lua` を解決し、エントリ名に
+kebab-case とフラット構成を要求します。そのため、論理的な層はファイル名の接頭辞で表現します。
 
-```
+```text
 vcs.yazi/
-├── main.lua           -- エントリポイント。setup / fetch / entry
-├── config.lua          -- 既定値・deep_merge
-├── core-path.lua        -- パス正規化（純粋関数）
-├── core-detector.lua     -- VCSルート検出（純粋関数 + Yaziアダプタ）
-├── core-status.lua       -- 状態優先度・集約ロジック（純粋関数）
-├── core-state.lua        -- ya.sync永続ストレージ（Yazi専用）
-├── core-notify.lua       -- 通知整形・送信
-├── backend-git.lua       -- git status解析・実行
-├── backend-svn.lua       -- svn status解析・実行
-├── tests/                -- 素のluaで実行できる単体・結合テスト
-├── README.md
-└── LICENSE
+├── main.lua             -- setup / fetch / entry / 先頭列描画
+├── config.lua           -- 既定値と再帰マージ
+├── core-detector.lua    -- Git/SVN ルート検出
+├── core-path.lua        -- パス正規化とルート境界
+├── core-status.lua      -- 優先度、集約、ignored bookkeeping
+├── core-state.lua       -- ya.sync を使う状態ストレージ
+├── core-notify.lua      -- 通知整形
+├── backend-git.lua      -- Git status 引数、解析、Command 実行
+├── backend-svn.lua      -- SVN status 引数、XML 解析、Command 実行
+└── tests/               -- 素の Lua で実行する単体・結合テスト
 ```
 
-`init.lua` は成果物に含めない。ユーザーの `~/.config/yazi/init.lua` から `require("vcs"):setup()` を呼ぶ前提（README参照）。
+`init.lua` はプラグインに含めません。ユーザーの `~/.config/yazi/init.lua` から
+`require("vcs"):setup()` を呼び出します。
 
----
+## 2. レイヤリング
 
-## 2. レイヤリング：純粋ロジック / Yazi依存
+| 層 | 主なファイル | 責務 | テスト境界 |
+|---|---|---|---|
+| 純粋ロジック | `core-path.lua`, `core-status.lua`, パーサ部分 | パス、状態優先度、集約、Git/SVN出力解析 | 素の Lua で単体テスト |
+| Yazi アダプタ | `core-detector.lua`, backend の `fetch` | `fs`、`Url`、`Command` への接続 | 実 Yazi または実CLI |
+| 状態層 | `core-state.lua` | `ya.sync` 越しの設定・root・status の共有 | 実 Yazi のスモーク確認 |
+| 描画・入口 | `main.lua`, `core-notify.lua` | fetcher、手動 action、先頭列、通知 | 実 Yazi の目視・スモーク確認 |
 
-Yazi のプラグインAPI（`ya`, `Command`, `fs`, `ui`, `th`, `cx`, `Entity`）はグローバル変数として提供され、Yazi ランタイム外では未定義（`nil`）になる。そこで各ファイルは次のルールに従う。
-
-| 単体テスト | lua tests/run.lua | test-configを含む純粋Luaの回帰テストと、両backendのパーサを検証 |
-- 純粋ファイル（`core-path.lua`, `core-status.lua`, `core-detector.lua` の検出アルゴリズム部分, `backend-git.lua`/`backend-svn.lua` のパーサ部分）は Yazi API に一切触れず、`tests/*.lua` から素の `lua` で直接検証できる。
-- Yazi 専用ファイル（`core-state.lua` の `ya.sync` 群、`core-notify.lua` の送信部、`main.lua` の `setup`/`fetch`/`entry`）は実 Yazi 上でのスモークテストでのみ検証できる（§7参照）。
-
-この分離により、テストスイート（88件）の大半を素の `lua` で実行できている。
-
----
+描画コールバックでは I/O を行わず、`core-state.lua` に保存済みの状態だけを参照します。
+CLI 実行と解析は非同期 fetcher 経路で行います。
 
 ## 3. データフロー
 
-```
+```text
 Yazi fetcher (url="*" / url="*/")
-        │
+        │ job.files
         ▼
-main.lua : M:fetch(job)
-        │  job.files[1].url.base/.parent → cwd
+main.lua:fetch
+        │ cwd = first file's base/parent
         ▼
-core-detector.lua : M.detect(cwd, priority)
-        │  .git / .svn を親方向へ探索（サブプロセス不使用）
+core-detector:detect
+        │ 親方向へ .git / .svn を探索
         ▼
-kind, root  ("git"|"svn", Url)
-        │
+root-relative paths
+        │ Path.strip_prefix（forward slash）
         ▼
-main.lua : job.files を root相対・forward-slashパスへ変換
-        │  (Path.strip_prefix)
+backend-git / backend-svn:fetch
+        │ Command(...):cwd(root):arg(...):output()
         ▼
-backend-git.lua / backend-svn.lua : M.fetch(root_str, queried, options)
-        │  Command(...):cwd(root):arg(status_args(paths, options)):output()
-        │  → parse_status / parse_status_xml
+parse → bubble_up / propagate_down → clean backfill
         ▼
-changed, excluded, err
-        │
+core-state:remember（ya.sync）→ ui.render()
         ▼
-core-status.lua : bubble_up / propagate_down / merge
-        │  ディレクトリ集約・優先度解決
-        ▼
-main.lua : 未出力パスを "clean" で埋め戻し
-        ▼
-core-state.lua : State.remember(cwd, root, changed)  [ya.sync]
-        │  state.dirs[cwd]=root, state.roots[root][relpath]=status
-        ▼
-main.lua : Entity:children_add(render_fn, order)
-        │  State.root_of / State.status_of を毎フレーム参照
-        ▼
-先頭列に状態記号を描画
+Entity:children_add が先頭列へ状態記号を描画
 ```
 
-### 3.1 状態の持ち方
+### 3.1 Fetch の対象
 
-`core-state.lua` の永続テーブルは2段構成。
+`job.files` に渡された表示中のパスだけを root 相対へ変換し、status コマンドへ引数として渡します。
+パスを shell 文字列へ連結せず、Yazi `Command:arg()` の引数配列を使います。出力に現れなかった
+問い合わせ対象は `clean` として backfill し、前回の stale 状態を消します。
+
+### 3.2 ディレクトリ集約
+
+`status.aggregate_directories` が有効なら、fetch 結果のファイル状態を `bubble_up()` で全ての
+祖先ディレクトリへ伝播します。ファイルとディレクトリが混在する一覧でも、先頭要素の種別には
+依存しません。Git の完全 ignored ディレクトリは `propagate_down()` で表示対象または内部 sentinel
+として扱い、ignored ファイルは親の状態へ伝播させません。
+
+### 3.3 手動 refresh
+
+`plugin vcs -- status` は `core-state.current_url()` で現在の Url を取得し、`Detector.detect()`
+で root を再検出します。初回 fetch 前で state に root が保存されていない場合でも、検出した root を
+クリアして `ya.emit("refresh", {})` を発行できます。
+
+## 4. 状態ストレージ
+
+`core-state.lua` の `ya.sync` 関数群が同一モジュールの状態テーブルを共有します。
 
 ```lua
-state.dirs  = { [cwd_abs_string] = root_abs_string }
-state.roots = { [root_abs_string] = { [relpath] = status_name } }
+state.config = merged_config
+state.dirs  = { [cwd_string] = root_string }
+state.roots = { [root_string] = { [relpath] = status_name } }
 ```
 
-`relpath` は常に forward-slash・root相対。Git はコマンド自体がこの形式で出力するためそのまま使え、SVN は実測により「渡したパスをそのまま返す」（後述4.1）ことが判明したため、渡す時点で root相対・forward-slash に統一している。
+root と cwd は文字列キー、status のパスは forward slash の root 相対です。`remember()` は
+取得結果を merge し、`clear_root()` / `forget()` は再取得時の stale state を破棄します。
 
-### 3.2 `ya.sync` の挙動（要注意点）
+## 5. VCS 検出
 
-`ya.sync(function(state, ...) ... end)` の `state` 引数は「このブロックを**定義したファイル**自身がロードされたモジュールテーブル」に束縛される（`yazi-plugin/src/utils/sync.rs` の `current` = `rt.current_owned()` を実測・ソース確認）。つまり `core-state.lua` 内で定義した `ya.sync` ブロックはすべて `core-state.lua` 自身の返り値テーブルを共有ストレージとして使う。同期(sync)コンテキストから呼んでも非同期(async)コンテキストから呼んでも、Rust側が `blocking` フラグを見て自動的に直接呼び出し/チャネル経由呼び出しを切り替えるため、呼び出し側は区別を意識しなくてよい（同ファイル内で確認）。この性質により、`Entity:children_add` のレンダーコールバック（同期コンテキスト）から `State.status_of(...)` を毎フレーム呼んでも問題なく動作する。
+Git は対象ディレクトリから親方向へ `.git` を探します。`.git` がディレクトリなら通常の
+リポジトリ、`gitdir: ` で始まるファイルなら worktree / submodule の root と判定します。
+SVN は `.svn` ディレクトリを探します。両方が検出されたときは、開始位置に近い root を優先し、
+同じ位置なら `detection.priority`（既定 `git`, `svn`）を使います。
 
----
+通常の検出経路で Git/SVN のサブプロセスを起動せず、Yazi の filesystem API を使います。
 
-## 4. 実装時に判明した仕様上の発見
-
-要件定義（requirements.md）作成時点では未検証・推測だった箇所を、実装時に実機（Git 2.x, SVN 1.14.5, Yazi 26.5.6）で確認し、設計に反映した。
-
-### 4.1 SVN はターゲットパスを「渡した形のまま」返す（Gitとの重要な差異）
-
-`git status` はどんな形でパスを渡しても、常に **cwd相対** のパスを返す。一方 `svn status --xml` は **渡した形をそのまま**返す——絶対パスを渡せば絶対パスが返る（実測: `C:\Users\...\modified.txt` がそのままXMLの `path` 属性に出現）。この非対称性に気づかずに `job.files` の絶対URLをそのまま両バックエンドへ渡すと、SVN側だけ root相対キー前提が壊れる。対策として、`main.lua` はどちらのバックエンドに対しても **事前に root相対・forward-slashへ変換したパス** のみを渡す（`backend-git.lua:31`, `backend-svn.lua:114` のコメント参照）。
-
-### 4.2 Git porcelain v2 の rename レコードは NUL フィールドを2つ消費する
-
-`git status --porcelain=v2 -z` の rename/copy レコード（先頭 `2`）は、他のレコードと違い **NUL区切りフィールドを2つ**使う（`<path>` フィールドの直後に `<origPath>` フィールドが続く）。実測: `2 R. N... ... R100 new.txt\0old.txt\0`。単純に「NULで割って1レコード1フィールド」と実装すると、rename の直後のレコードが必ず化ける。`backend-git.lua` の `parse_status` はレコード種別を先に判定し、`2` のときだけ2フィールド消費するよう実装している。
-
-### 4.3 SVN の `<lock>` はXML要素であり属性ではない
-
-当初は `wc-locked="true"` のような属性を想定していたが、実際には `<wc-status>` の子要素として `<lock><token>...</token>...</lock>` の形で出現する（実測）。`backend-svn.lua` の `classify` は `body:find("<lock[%s>]")` で子要素の有無を判定する。
-
-### 4.4 `--` オプション終端は SVN でも必須
-
-`-` から始まるファイル名（例: `-dashfile.txt`）を渡す際、`svn status` は `--` がないとパスをオプションとして誤解釈する（実測、requirements.md §26.4 の未検証事項を解消）。`backend-svn.lua:status_args` は常に `--` を挟む。
-
-### 4.5 `Entity:children_add` で先頭列描画は可能
-
-要件定義初版は「先頭列表示は困難な場合がある」としていたが、`Entity` の組み込み子要素（`padding` が `order=1000`）より小さい `order` を指定すれば先頭列に描画できることをソース確認（`yazi-plugin/preset/components/entity.lua`）。`main.lua` は `cfg.status.order`（既定 `500`）で `padding` より前に描画する。
-
----
-
-## 5. バックエンド抽象化
-
-`backend-git.lua` / `backend-svn.lua` は共通のstatus backend契約を実装する。
+## 6. Backend 契約
 
 ```lua
-M.capabilities = { push = bool, branch = bool, switch = bool }
-M.status_args(paths, options) -> string[]
-M.fetch(root, paths, options) -> (changed, excluded, err)
+backend = {
+  capabilities = { push = false, branch = false, switch = false },
+  status_args = function(paths, options) end,
+  fetch = function(root, paths, options)
+    -- changed, excluded, err
+  end,
+}
 ```
 
-SVNはGitのような`excluded`ディレクトリを返さないため、`fetch()`の成功時に空テーブルを返す。これにより`main.lua:M:fetch`はbackend種別による返り値の分岐なしで処理できる。SVN固有の`status.ignore_externals`はbackend options経由で`--ignore-externals`の有無へ反映する。
+Git は次を組み立てます。
 
-`capabilities`テーブルはPhase 2/3（Push/Branch/SwitchのUIをSVNで無効化する、requirements.md §18）で使う設計だが、Phase 1時点では参照箇所がない（意図的な先行実装であり、既知のレビュー指摘でも「欠陥ではない」）。
-
-## 6. 状態の優先度と集約
-
-`core-status.lua` の `M.CODES` は各状態名に一意の優先度数値を割り当てる（同数値の状態を作らない——git.yazi の実装がまさにこの制約に依っている）。
-
-```
-conflict(12) > missing(11) > deleted(10) > replaced(9) > modified(8)
-> property_modified(7) > added(6) > untracked(5) > locked(4)
-> external(3) > ignored(2) > clean(0)
+```text
+git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z
+    --untracked-files=all --ignored=matching -- <paths...>
 ```
 
-`unknown(100)` と `excluded(99)` は表示用ではない内部センチネル。`unknown` は「まだfetchされていない」、`excluded` は「まるごとignoreされたディレクトリの内部にいる」ことを表す git.yazi 由来のブックキーピング値で、本来は表示前に `ignored` へ変換される設計（`core-status.lua` 冒頭コメント）。この変換は`core-status.lua:M.display_name`で行い、描画層が`excluded`を直接参照しない。
+porcelain v2 の rename / copy レコードは NUL フィールドを2つ消費するため、パーサはレコード種別
+を見て original path を読み飛ばします。
 
-`bubble_up` はファイル単位の変更を祖先ディレクトリへロールアップし（ignoreされた変更は伝播させない）、`propagate_down` は「まるごとignoreされたディレクトリ」を fetch 対象の直下エントリとして表示するか、fetch対象自身がその内部にあるかを判定する。いずれも git.yazi の `bubble_up`/`propagate_down` を移植・一般化したもの（MITライセンス）。
+SVN は次を組み立てます。
 
----
+```text
+svn status --xml --no-ignore [--ignore-externals] -- <paths...>
+```
 
-## 7. テスト戦略
+SVN の XML は限定的な属性パーサで処理し、named / numeric entity、`<lock>` 要素、tree conflict、
+property-only modification を扱います。`fetch()` の返り値は Git/SVN とも
+`changed, excluded, err` の3値に統一しています。
 
-| 種別 | 実行方法 | 内容 |
-|---|---|---|
-| 単体テスト | lua tests/run.lua | test-configを含む純粋Luaの回帰テストと、両backendのパーサを検証 |
-| 結合テスト（実バイナリ） | 同上（`git`/`svn` がPATHにあれば自動実行） | 一時リポジトリ/作業コピーを作成し、実CLI出力をパーサに通す |
-| スモークテスト | 実Yazi起動 + 一時的な `ya.dbg` 計装 | `%APPDATA%\yazi\config\plugins\vcs.yazi` へジャンクション接続し、Gitリポジトリ・SVN作業コピー・非VCSディレクトリの3パターンで `fetch()` がエラーなく完走することを確認済み（計装は確認後に削除） |
-| 未実施 | — | 画面上の記号の色・位置の目視確認（TUIのため自動化不可、ユーザー自身の確認が必要） |
+## 7. 状態優先度と表示
 
----
+`core-status.lua` は次の優先度で状態を1文字へ集約します。
 
-## 8. 既知の制約・未解決事項
+```text
+conflict > missing > deleted > replaced > modified > property_modified
+> added > untracked > locked > external > ignored > clean
+```
 
-- /code-review medium で検出したIssue #1〜#6は修正済み。残る未検証事項はSVN externals等の実働fixtureとTUI目視確認。
-- SVNの `external` / `obstructed` / `incomplete` は `svn help status` の文書のみに基づき、実働作業コピーでの再現は未実施（requirements.md §26.4）。
-- Phase 2以降（Update/Commit/Diff/Log/Discard/Push/Branch/Switch）は未実装。
+`excluded` は Git ignored ディレクトリ内部の bookkeeping 用 sentinel で、描画前に `ignored` へ
+変換します。記号は `config.signs`、先頭列の順序は `config.status.order`、テーマ色は
+`th.vcs.<status>` から設定できます。
 
----
+## 8. テスト戦略
 
-## 9. 参照
+- `lua tests/run.lua`: 設定マージ、パス、検出アルゴリズム、優先度・集約、Git/SVN パーサを検証
+- 実 Git 結合テスト: modified、untracked、ignored、rename の実出力を検証
+- 実 SVN 結合テスト: 作業コピーを生成し modified / unversioned の実出力を検証
+- 結合テストの一時ディレクトリ、shell quote、cwd、file URL、cleanup は OS-aware helper に集約
+- 実 Yazi: fetcher、`ya.sync` 状態、先頭列描画、手動 refresh をスモーク・目視確認
 
-- [requirements.md](requirements.md) — 要件定義（本書が「as-built」として差分を説明する対象）
-- [../vcs.yazi/README.md](../vcs.yazi/README.md) — インストール手順・設定例・既知の制限（ユーザー向け）
-- [todo.md](todo.md) / [done.md](done.md) — 作業記録
+Lua interpreter がない環境では純粋 Lua テストを実行できません。また SVN CLI がない環境では
+SVN 結合テストを skip します。TUI の色・位置、SVN external / obstructed / incomplete は別途実機確認が必要です。
+
+## 9. 既知の制約と将来拡張
+
+- Phase 2: Update、Commit、CLI Diff、CLI Log、Discard
+- Phase 3: Git Push、Branch、Switch
+- Phase 4: 外部 diff / log、Windows GUI、WSL パス変換、性能改善
+- 既存 `git.yazi` と同時に status fetcher を有効にすると二重表示になる可能性があります
+- 認証情報管理、Force Push、clean、stash などの破壊的・認証系機能は未実装です
+
+## 10. 参照
+
+- [ルート README](../README.md)
+- [ユーザーマニュアル](users-manual.md)
+- [要件定義](requirements.md)
+- [プラグイン README](../vcs.yazi/README.md)
+- [TODO / 完了記録](todo.md) / [done.md](done.md)
