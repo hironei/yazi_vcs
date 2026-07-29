@@ -84,10 +84,10 @@ local function classify(attrs, locked)
 		return "untracked"
 	elseif item == "ignored" then
 		return "ignored"
-	elseif item == "external" then
-		return "external" -- not empirically verified
 	elseif props == "modified" then
 		return "property_modified"
+	elseif item == "external" then
+		return "external" -- not empirically verified
 	elseif locked then
 		return "locked"
 	end
@@ -98,9 +98,9 @@ end
 ---   --no-ignore           without this, ignored paths are omitted
 ---                         entirely (verified empirically) and §8.2's
 ---                         Ignored state could never be shown
----   --ignore-externals    matches the git side's scope (§4.2 excludes
----                         externals handling) and keeps large working
----                         copies fast (§27)
+---   --ignore-externals    is included by default to match the Git side's
+---                         scope (§4.2 excludes externals handling); users
+---                         can disable it with status.ignore_externals=false
 ---   --                    required: SVN parses a leading "-" in a path
 ---                         as an option otherwise (verified empirically
 ---                         with a file named "-dashfile.txt") — resolves
@@ -112,9 +112,14 @@ end
 --- (native-separator) output path, breaking the root-relative-key
 --- assumption `parse_status_xml` and the rest of this plugin rely on.
 ---@param paths string[]|nil  root-relative, forward-slash paths to limit the query to; nil/empty = "."
+---@param ignore_externals boolean|nil  whether to pass --ignore-externals; defaults to true
 ---@return string[]
-function M.status_args(paths)
-	local args = { "status", "--xml", "--no-ignore", "--ignore-externals", "--" }
+function M.status_args(paths, ignore_externals)
+	local args = { "status", "--xml", "--no-ignore" }
+	if ignore_externals ~= false then
+		args[#args + 1] = "--ignore-externals"
+	end
+	args[#args + 1] = "--"
 	if paths and #paths > 0 then
 		for _, p in ipairs(paths) do
 			args[#args + 1] = p
@@ -153,17 +158,20 @@ end
 --- parse the result.
 ---@param root string          absolute working-copy root; used as the command's cwd
 ---@param paths string[]|nil   root-relative paths to limit the query to
+---@param options table|nil    backend options
 ---@return table<string,string>? changed
+---@return string[]? excluded  always empty; kept for the common backend contract
 ---@return string? err
-function M.fetch(root, paths)
-	local output, err = Command("svn"):cwd(root):arg(M.status_args(paths)):output()
+function M.fetch(root, paths, options)
+	local ignore_externals = not options or options.ignore_externals ~= false
+	local output, err = Command("svn"):cwd(root):arg(M.status_args(paths, ignore_externals)):output()
 	if not output then
-		return nil, tostring(err)
+		return nil, nil, tostring(err)
 	end
 	if not output.status.success then
-		return nil, output.stderr
+		return nil, nil, output.stderr
 	end
-	return M.parse_status_xml(output.stdout), nil
+	return M.parse_status_xml(output.stdout), {}, nil
 end
 
 return M

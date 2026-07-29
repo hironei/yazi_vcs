@@ -155,10 +155,11 @@ end
 --- result.
 ---@param root string          absolute repository root; used as the command's cwd
 ---@param paths string[]|nil   root-relative paths to limit the query to
+---@param options table|nil    backend options (currently unused)
 ---@return table<string,string>? changed
 ---@return string[]? excluded
 ---@return string? err
-function M.fetch(root, paths)
+function M.fetch(root, paths, _options)
 	local output, err = Command("git"):cwd(root):arg(M.status_args(paths)):output()
 	if not output then
 		return nil, nil, tostring(err)

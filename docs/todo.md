@@ -4,17 +4,6 @@
 
 ---
 
-## バグ修正（`/code-review medium` 検出分、2026-07-29）
-
-GitHub Issue化済み。詳細・再現手順・修正案は各Issue本文を参照。
-
-- [ ] [#1](https://github.com/hironei/yazi_vcs/issues/1) — `excluded` ステータスが表示時に `ignored` へ変換されない（bug）
-- [ ] [#2](https://github.com/hironei/yazi_vcs/issues/2) — `deep_merge` が明示的な `false` オーバーライドを無視する（bug）
-- [ ] [#3](https://github.com/hironei/yazi_vcs/issues/3) — `is_within`/`strip_prefix` がドライブルート直下のVCSルートで二重スラッシュになる（bug）
-- [ ] [#4](https://github.com/hironei/yazi_vcs/issues/4) — `status.aggregate_directories`/`status.ignore_externals` が未実装で設定しても効果がない（bug）
-- [ ] [#5](https://github.com/hironei/yazi_vcs/issues/5) — backend `fetch()` の返り値の数がGit/SVNで揃っておらず `main.lua` に分岐が漏れている（enhancement）
-- [ ] [#6](https://github.com/hironei/yazi_vcs/issues/6) — SVN `classify()` で `external` が `property_modified` より優先されうる（bug・未確定/PLAUSIBLE）
-
 ## 目視確認（ユーザー対応が必要）
 
 - [ ] 実際のYazi画面で状態記号の色・位置を確認する（TUIのため自動化不可）。動作確認用に `%APPDATA%\yazi\config` へ `vcs.yazi` をジャンクション接続済み、`yazi.toml`/`init.lua`/`keymap.toml` に設定追加済み

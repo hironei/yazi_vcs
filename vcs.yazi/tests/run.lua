@@ -18,6 +18,7 @@ end
 local t = require("support")
 
 local suites = {
+	"test-config",
 	"test-core-path",
 	"test-core-status",
 	"test-core-detector",

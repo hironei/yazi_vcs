@@ -49,7 +49,8 @@ function M.is_within(root, target)
 	if target == root then
 		return true
 	end
-	return target:sub(1, #root + 1) == root .. "/"
+	local boundary = root:sub(-1) == "/" and root or (root .. "/")
+	return target:sub(1, #boundary) == boundary
 end
 
 --- Return `target`'s path relative to `root` (slash-separated, no leading
@@ -67,7 +68,8 @@ function M.strip_prefix(root, target)
 	if target == root then
 		return ""
 	end
-	return target:sub(#root + 2)
+	local prefix_length = root:sub(-1) == "/" and #root or (#root + 1)
+	return target:sub(prefix_length + 1)
 end
 
 --- Join a root path and a slash-separated relative path, native-separated.

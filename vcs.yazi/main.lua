@@ -46,6 +46,7 @@ function M:setup(opts)
 
 		local rel = Path.strip_prefix(root, tostring(entity._file.url))
 		local name = rel and State.status_of(root, rel) or nil
+		name = Status.display_name(name)
 		if not name or name == "clean" then
 			return ""
 		end
@@ -95,13 +96,9 @@ function M:fetch(job)
 		end
 	end
 
-	local changed, excluded, err
-	if kind == "git" then
-		changed, excluded, err = BACKENDS.git.fetch(root_str, queried)
-	else
-		changed, err = BACKENDS.svn.fetch(root_str, queried)
-		excluded = {}
-	end
+	local changed, excluded, err = BACKENDS[kind].fetch(root_str, queried, {
+		ignore_externals = cfg.status.ignore_externals,
+	})
 	if err then
 		return true, Err("Cannot run `%s status`: %s", kind, err)
 	end
@@ -109,7 +106,7 @@ function M:fetch(job)
 	-- Roll file-level changes up onto the ancestor directories being
 	-- listed, when what's being fetched is itself directory rows
 	-- (requirements §8.6).
-	if job.files[1].cha.is_dir then
+	if cfg.status.aggregate_directories and job.files[1].cha.is_dir then
 		Status.merge(changed, Status.bubble_up(changed))
 	end
 

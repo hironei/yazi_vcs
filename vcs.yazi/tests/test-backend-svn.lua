@@ -11,6 +11,8 @@ return function(t)
 	-- status_args
 	do
 		local args = svn.status_args(nil)
+		local without_externals = svn.status_args(nil, false)
+		t.deep_eq(without_externals, { "status", "--xml", "--no-ignore", "--", "." }, "status_args can include SVN externals")
 		t.deep_eq(args, { "status", "--xml", "--no-ignore", "--ignore-externals", "--", "." }, "status_args defaults to '.'")
 
 		local with_paths = svn.status_args({ "a.txt", "b.txt" })
@@ -18,6 +20,12 @@ return function(t)
 			with_paths,
 			{ "status", "--xml", "--no-ignore", "--ignore-externals", "--", "a.txt", "b.txt" },
 			"status_args appends paths after --"
+		)
+		local without_externals = svn.status_args({ "a.txt" }, false)
+		t.deep_eq(
+			without_externals,
+			{ "status", "--xml", "--no-ignore", "--", "a.txt" },
+			"status_args omits --ignore-externals when configured"
 		)
 	end
 
@@ -225,6 +233,14 @@ return function(t)
 		t.deep_eq(svn.parse_status_xml(xml), { ["café.txt"] = "modified" }, "numeric character reference decoded in path attribute")
 	end
 
+	do
+		local xml = [[<status><target path="."><entry path="external.txt"><wc-status item="external" props="modified"></wc-status></entry></target></status>]]
+		t.deep_eq(
+			svn.parse_status_xml(xml),
+			{ ["external.txt"] = "property_modified" },
+			"property modification outranks an external item"
+		)
+	end
 	-- Optional integration test against a real `svn` binary, if one is
 	-- on PATH.
 	local probe = io.popen("svn --version --quiet 2>&1")

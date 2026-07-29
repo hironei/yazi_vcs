@@ -34,7 +34,7 @@ vcs.yazi/
 
 Yazi のプラグインAPI（`ya`, `Command`, `fs`, `ui`, `th`, `cx`, `Entity`）はグローバル変数として提供され、Yazi ランタイム外では未定義（`nil`）になる。そこで各ファイルは次のルールに従う。
 
-- **トップレベルで Yazi API を呼ばない。** 呼び出しは必ず関数本体の中に書く。トップレベルで呼ぶと、素の `lua` インタプリタで `require()` した瞬間にエラーになり、単体テストが書けなくなる（`core-state.lua` の `ya.sync(...)` 呼び出しが好例——これは関数呼び出しであり定義ではないため、この行自体はモジュール読み込み時に実行される。よってこのファイルは意図的にYazi専用とし、純粋ロジックは同居させない）。
+| 単体テスト | lua tests/run.lua | test-configを含む純粋Luaの回帰テストと、両backendのパーサを検証 |
 - 純粋ファイル（`core-path.lua`, `core-status.lua`, `core-detector.lua` の検出アルゴリズム部分, `backend-git.lua`/`backend-svn.lua` のパーサ部分）は Yazi API に一切触れず、`tests/*.lua` から素の `lua` で直接検証できる。
 - Yazi 専用ファイル（`core-state.lua` の `ya.sync` 群、`core-notify.lua` の送信部、`main.lua` の `setup`/`fetch`/`entry`）は実 Yazi 上でのスモークテストでのみ検証できる（§7参照）。
 
@@ -60,8 +60,8 @@ kind, root  ("git"|"svn", Url)
 main.lua : job.files を root相対・forward-slashパスへ変換
         │  (Path.strip_prefix)
         ▼
-backend-git.lua / backend-svn.lua : M.fetch(root_str, queried)
-        │  Command(...):cwd(root):arg(status_args(paths)):output()
+backend-git.lua / backend-svn.lua : M.fetch(root_str, queried, options)
+        │  Command(...):cwd(root):arg(status_args(paths, options)):output()
         │  → parse_status / parse_status_xml
         ▼
 changed, excluded, err
@@ -124,26 +124,19 @@ state.roots = { [root_abs_string] = { [relpath] = status_name } }
 
 ---
 
-## 5. バックエンド抽象化とその歪み
+## 5. バックエンド抽象化
 
-`backend-git.lua` / `backend-svn.lua` は次の面を共有する想定で設計した。
+`backend-git.lua` / `backend-svn.lua` は共通のstatus backend契約を実装する。
 
 ```lua
-M.capabilities = { push = bool, branch = bool, switch = bool }  -- Phase 2/3向け。現状未参照
-M.status_args(paths) -> string[]
-M.fetch(root, paths) -> ...
+M.capabilities = { push = bool, branch = bool, switch = bool }
+M.status_args(paths, options) -> string[]
+M.fetch(root, paths, options) -> (changed, excluded, err)
 ```
 
-しかし `M.fetch` の返り値の**個数**は揃っていない。
+SVNはGitのような`excluded`ディレクトリを返さないため、`fetch()`の成功時に空テーブルを返す。これにより`main.lua:M:fetch`はbackend種別による返り値の分岐なしで処理できる。SVN固有の`status.ignore_externals`はbackend options経由で`--ignore-externals`の有無へ反映する。
 
-- `backend-git.lua`: `(changed, excluded, err)` — 3値
-- `backend-svn.lua`: `(changed, err)` — 2値（SVNには「まるごとignoreされたディレクトリ」を親から集約する概念が実質不要——`svn status` は unversioned/ignored ディレクトリを既定でも再帰しないため、Git側で必要な `excluded` ブックキーピングが不要）
-
-この非対称性のため `main.lua:M:fetch` は `kind` で分岐して呼び出し方を変えている（[Issue #5](https://github.com/hironei/yazi_vcs/issues/5) として記録済み・未修正）。将来的には `backend-svn.lua` 側が常に空の `excluded` を含む3値を返すよう揃え、`main.lua` 側の分岐を消せる見込み。
-
-`capabilities` テーブルは Phase 2/3（Push/Branch/Switch のUIをSVNで無効化する、requirements.md §18）で使う設計だが、Phase 1 時点では参照箇所がない（意図的な先行実装であり、既知のレビュー指摘でも「欠陥ではない」と判定済み）。
-
----
+`capabilities`テーブルはPhase 2/3（Push/Branch/SwitchのUIをSVNで無効化する、requirements.md §18）で使う設計だが、Phase 1時点では参照箇所がない（意図的な先行実装であり、既知のレビュー指摘でも「欠陥ではない」）。
 
 ## 6. 状態の優先度と集約
 
@@ -155,7 +148,7 @@ conflict(12) > missing(11) > deleted(10) > replaced(9) > modified(8)
 > external(3) > ignored(2) > clean(0)
 ```
 
-`unknown(100)` と `excluded(99)` は表示用ではない内部センチネル。`unknown` は「まだfetchされていない」、`excluded` は「まるごとignoreされたディレクトリの内部にいる」ことを表す git.yazi 由来のブックキーピング値で、本来は表示前に `ignored` へ変換される設計（`core-status.lua` 冒頭コメント）。**この変換が実装漏れであることが `/code-review` で判明し、[Issue #1](https://github.com/hironei/yazi_vcs/issues/1) として記録済み・未修正。**
+`unknown(100)` と `excluded(99)` は表示用ではない内部センチネル。`unknown` は「まだfetchされていない」、`excluded` は「まるごとignoreされたディレクトリの内部にいる」ことを表す git.yazi 由来のブックキーピング値で、本来は表示前に `ignored` へ変換される設計（`core-status.lua` 冒頭コメント）。この変換は`core-status.lua:M.display_name`で行い、描画層が`excluded`を直接参照しない。
 
 `bubble_up` はファイル単位の変更を祖先ディレクトリへロールアップし（ignoreされた変更は伝播させない）、`propagate_down` は「まるごとignoreされたディレクトリ」を fetch 対象の直下エントリとして表示するか、fetch対象自身がその内部にあるかを判定する。いずれも git.yazi の `bubble_up`/`propagate_down` を移植・一般化したもの（MITライセンス）。
 
@@ -165,7 +158,7 @@ conflict(12) > missing(11) > deleted(10) > replaced(9) > modified(8)
 
 | 種別 | 実行方法 | 内容 |
 |---|---|---|
-| 単体テスト | `lua tests/run.lua` | `core-path`, `core-status`, `core-detector`, 両backendのパーサを素のluaで検証（88件） |
+| 単体テスト | lua tests/run.lua | test-configを含む純粋Luaの回帰テストと、両backendのパーサを検証 |
 | 結合テスト（実バイナリ） | 同上（`git`/`svn` がPATHにあれば自動実行） | 一時リポジトリ/作業コピーを作成し、実CLI出力をパーサに通す |
 | スモークテスト | 実Yazi起動 + 一時的な `ya.dbg` 計装 | `%APPDATA%\yazi\config\plugins\vcs.yazi` へジャンクション接続し、Gitリポジトリ・SVN作業コピー・非VCSディレクトリの3パターンで `fetch()` がエラーなく完走することを確認済み（計装は確認後に削除） |
 | 未実施 | — | 画面上の記号の色・位置の目視確認（TUIのため自動化不可、ユーザー自身の確認が必要） |
@@ -174,7 +167,7 @@ conflict(12) > missing(11) > deleted(10) > replaced(9) > modified(8)
 
 ## 8. 既知の制約・未解決事項
 
-- `/code-review medium` で検出した6件はすべて GitHub Issue化済み・未修正（[docs/todo.md](todo.md)参照）。
+- /code-review medium で検出したIssue #1〜#6は修正済み。残る未検証事項はSVN externals等の実働fixtureとTUI目視確認。
 - SVNの `external` / `obstructed` / `incomplete` は `svn help status` の文書のみに基づき、実働作業コピーでの再現は未実施（requirements.md §26.4）。
 - Phase 2以降（Update/Commit/Diff/Log/Discard/Push/Branch/Switch）は未実装。
 

@@ -60,8 +60,10 @@ function M.deep_merge(defaults, overrides)
 	for k, v in pairs(defaults) do
 		if type(v) == "table" and type(overrides[k]) == "table" then
 			result[k] = M.deep_merge(v, overrides[k])
+		elseif overrides[k] == nil then
+			result[k] = v
 		else
-			result[k] = overrides[k] ~= nil and overrides[k] or v
+			result[k] = overrides[k]
 		end
 	end
 	for k, v in pairs(overrides) do

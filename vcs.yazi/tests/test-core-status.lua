@@ -15,6 +15,8 @@ return function(t)
 	t.truthy(status.priority("external") > status.priority("ignored"), "external outranks ignored")
 	t.truthy(status.priority("ignored") > status.priority("clean"), "ignored outranks clean")
 	t.eq(status.priority("clean"), 0, "clean is priority 0")
+	t.eq(status.display_name("excluded"), "ignored", "excluded is converted to the visible ignored status")
+	t.eq(status.display_name("modified"), "modified", "ordinary statuses are unchanged for display")
 	t.eq(status.priority("no-such-status"), 0, "unknown name falls back to 0 (clean)")
 
 	-- Every real status name maps to a unique priority number (the

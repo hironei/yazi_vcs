@@ -57,6 +57,13 @@ function M.priority(name)
 	return M.CODES[name] or 0
 end
 
+--- Convert internal bookkeeping statuses to the status shown to users.
+---@param name string?
+---@return string?
+function M.display_name(name)
+	return name == "excluded" and "ignored" or name
+end
+
 --- Merge `changed` (relpath -> status name) into `into`, in place.
 --- "clean" entries remove the key instead of storing it, keeping the
 --- table sized to only the non-clean paths.

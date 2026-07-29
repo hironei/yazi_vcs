@@ -43,3 +43,13 @@
 
 - `docs/design.md` を作成: as-built設計（モジュール構成、レイヤリング方針、データフロー、`ya.sync`の挙動、実装時に判明した仕様上の発見4件、バックエンド抽象化の歪み、状態優先度、テスト戦略、既知の制約）
 - `docs/todo.md` / `docs/done.md` を作成し、作業記録を分離
+
+## 2026-07-29 — GitHub Issue #1〜#6 修正
+
+- Issue #1: 内部 excluded を表示時の ignored へ変換
+- Issue #2: deep_merge で明示的な false 設定を保持
+- Issue #3: POSIXルートおよびドライブルート直下のパス境界を修正
+- Issue #4: aggregate_directories と ignore_externals を実際のfetch経路へ接続
+- Issue #5: Git/SVN backendの fetch() 返り値を (changed, excluded, err) へ統一
+- Issue #6: SVNの property_modified を external より優先
+- 各Issueの再発条件を純粋Luaテストへ追加

@@ -74,6 +74,20 @@ require("vcs"):setup({
 })
 ```
 
+Status behavior can also be configured:
+
+```lua
+require("vcs"):setup({
+	status = {
+		aggregate_directories = false, -- do not roll file status up to parent directories
+		ignore_externals = false,       -- include SVN externals in status queries
+	},
+})
+```
+
+ignore_externals affects SVN only; Git has no equivalent status option. Both
+settings are merged recursively and explicit false values are preserved.
+
 ### 3. Keymap (manual status refresh)
 
 Add to `~/.config/yazi/keymap.toml`. `v` is intentionally avoided as a
