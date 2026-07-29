@@ -1,17 +1,12 @@
 # 完了記録
 
-## 2026-07-29 — Issue #9/#10整理
+## 2026-07-29 — vcs.yazi Phase 3（Git拡張）実装
 
-- Issue #9: Windowsパスの単一バックスラッシュをfile URLへ変換する回帰を修正
-- Issue #10: Issue #8後に不要となった`core-state.current_cwd`を削除
-- 回帰テストをテスト補助へ追加
-
-## 2026-07-29 — vcs.yazi Phase 2（共通操作）実装
-
-- `core-runner.lua`: 引数配列による外部コマンド実行、標準出力／標準エラー、終了コード、タイムアウト、`ui.hide()`による対話実行
-- `core-targets.lua`: selected → hovered → currentの対象決定、root境界検証、未追跡・ignored対象のDiscard除外
-- `core-commands.lua`: Git／SVNのUpdate、Commit、CLI Diff、CLI Log、Discard引数構築
-- `actions.lua`: Update、Commit（エディタ・UTF-8一時ファイル・stage挙動確認）、pager表示のDiff／Log、確認付きDiscard、実行後refresh
-- `core-state.lua`: 操作中の同一root競合抑止
-- 設定へeditor／pager／update／commit／discard／runnerを追加
-- 純粋Luaの対象選択・引数・runner補助テストを追加
+- `core-git.lua`: Push／Branch／Switchの引数構築、Branch一覧・remote解析、Branch名入力検証
+- `git-actions.lua`: Push、upstream未設定時のremote選択、Branch一覧／作成／名称変更／安全削除、local／remote tracking Switch
+- `core-state.lua`の操作ロックと成功後refreshをPhase3操作へ接続
+- Pushは`ui.hide()`配下で認証入力を許容し、Force Push／Force Delete／自動stash／強制Switchを実行しない
+- `config.lua`へ`git.push`／`git.branch`／`git.switch`設定を追加
+- README、ユーザーマニュアル、設計書、TODOをPhase3へ更新
+- Gitローカルbare repository結合テストを追加
+- Lua 5.5テスト: 157 passed / 0 failed

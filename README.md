@@ -1,8 +1,7 @@
 # yazi_vcs
 
-Yaziのファイル一覧へGit／Subversionの状態を表示し、共通操作を実行する
-`vcs.yazi`プラグインです。Phase 2ではStatus MVPに加え、Update、Commit、CLI
-Diff、CLI Log、Discardを実装しています。
+Yaziのファイル一覧へGit／Subversionの状態を表示し、共通操作とGit操作を提供する
+`vcs.yazi`プラグインです。Phase 3ではGit Push、Branch管理、Switchまで実装しています。
 
 ## 対応環境
 
@@ -28,48 +27,63 @@ run = "vcs"
 group = "vcs"
 ```
 
-`init.lua`では`require("vcs"):setup()`を呼びます。Phase2のキー例:
+`init.lua`では`require("vcs"):setup()`を呼びます。Phase 2／3のキー例:
 
 ```toml
 [[mgr.prepend_keymap]]
 on = [ "<C-g>", "u" ]
 run = "plugin vcs -- update"
 desc = "VCS update"
-
 [[mgr.prepend_keymap]]
 on = [ "<C-g>", "c" ]
 run = "plugin vcs -- commit"
 desc = "VCS commit"
-
 [[mgr.prepend_keymap]]
 on = [ "<C-g>", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
-
 [[mgr.prepend_keymap]]
 on = [ "<C-g>", "l" ]
 run = "plugin vcs -- log"
 desc = "VCS log"
-
 [[mgr.prepend_keymap]]
 on = [ "<C-g>", "r" ]
 run = "plugin vcs -- discard"
 desc = "Discard local changes"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "p" ]
+run = "plugin vcs -- push"
+desc = "Git push"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "b" ]
+run = "plugin vcs -- branch"
+desc = "Git branches"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "s" ]
+run = "plugin vcs -- switch"
+desc = "Git switch branch"
 ```
 
-対象は選択中の複数ファイル、hover中のファイル、現在ディレクトリの順です。
-Commitは既定で選択パスだけをGitへ渡し、そのパスだけが暗黙stageされます。
-`commit.git_mode = "staged"`ではstage済み内容だけをコミットします。Discardは
-確認を行い、未追跡・ignoredファイルを削除しません。
+`branch`は`list`／`create`／`create-switch`／`rename`／`delete`を入力して選びます。
+Pushでupstreamが未設定の場合は、設定の`default_remote`または入力したremoteへ
+`--set-upstream`付きでPushします。
 
 ```lua
 require("vcs"):setup({
-  editor = { command = "nvim", args = {}, wait = true },
-  pager = { command = "less", args = { "-R" } },
   runner = { timeout_ms = 30000 },
-  commit = { git_mode = "paths", allow_empty_message = false },
+  git = {
+    push = { default_remote = "origin", set_upstream_if_missing = true },
+    branch = { validate_name = true, allow_force_delete = false },
+    switch = { auto_track_remote = true, auto_stash = false, allow_discard_changes = false },
+  },
 })
 ```
+
+## 安全性
+
+Force Push、Force Delete、`git stash`、強制Switchは実行しません。detached HEADからの
+Push、現在Branchの削除、remote Branchの削除を拒否します。Branch名は`@`／`-`始まりを
+事前拒否したうえで`git check-ref-format --branch`で検証します。
 
 ## 検証
 
@@ -78,12 +92,5 @@ cd vcs.yazi
 lua tests/run.lua
 ```
 
-実Yaziの描画、端末占有、エディタ／pager、Windows／WSLの実操作は別途目視確認が必要です。
-Git Push、Branch、Switch、外部Diff／LogはPhase 3以降です。
-
-## ドキュメント
-
-- [要件定義](docs/requirements.md)
-- [設計書](docs/design.md)
-- [ユーザーマニュアル](docs/users-manual.md)
-- [TODO](docs/todo.md) / [完了記録](docs/done.md)
+Phase3のGitローカルbareリポジトリ結合テストを含みます。実YaziのUI、認証入力、Windows／WSL、
+SVN CLIは別途確認が必要です。外部Diff／LogとWindows GUI連携はPhase4です。

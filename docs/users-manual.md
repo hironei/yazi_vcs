@@ -1,11 +1,11 @@
 # vcs.yazi ユーザーマニュアル
 
-`vcs.yazi`は、Yaziのファイル一覧へGit／SVNの状態を表示し、Phase 2の共通操作を提供します。
-対応Yaziは26.5.6以降です。
+`vcs.yazi`は、Yaziのファイル一覧へGit／SVNの状態を表示し、Phase 2の共通操作と
+Phase 3のGit操作を提供します。対応Yaziは26.5.6以降です。
 
 ## インストールと設定
 
-`vcs.yazi`をYaziのpluginsディレクトリへコピーまたはリンクし、fetcherを登録します。
+`vcs.yazi`をYaziのpluginsディレクトリへ配置し、fetcherを登録します。
 
 ```toml
 [[plugin.prepend_fetchers]]
@@ -13,7 +13,6 @@ id = "vcs"
 url = "*"
 run = "vcs"
 group = "vcs"
-
 [[plugin.prepend_fetchers]]
 id = "vcs"
 url = "*/"
@@ -23,14 +22,14 @@ group = "vcs"
 
 ```lua
 require("vcs"):setup({
-  editor = { command = "nvim", args = {}, wait = true },
-  pager = { command = "less", args = { "-R" } },
   runner = { timeout_ms = 30000 },
-  commit = { git_mode = "paths", allow_empty_message = false },
+  git = {
+    push = { default_remote = "origin", set_upstream_if_missing = true },
+    branch = { show_remote = true, validate_name = true, allow_force_delete = false },
+    switch = { auto_track_remote = true, auto_stash = false, allow_discard_changes = false },
+  },
 })
 ```
-
-fetcher登録がない場合、`setup()`が成功しても状態取得は実行されません。
 
 ## キー操作
 
@@ -61,35 +60,46 @@ desc = "VCS log"
 on = [ "<C-g>", "r" ]
 run = "plugin vcs -- discard"
 desc = "Discard local changes"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "p" ]
+run = "plugin vcs -- push"
+desc = "Git push"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "b" ]
+run = "plugin vcs -- branch"
+desc = "Git branches"
+[[mgr.prepend_keymap]]
+on = [ "<C-g>", "g", "s" ]
+run = "plugin vcs -- switch"
+desc = "Git switch branch"
 ```
 
-操作対象は、選択中の複数ファイル、hover中のファイル、現在ディレクトリの順です。
-UpdateはGitで`pull --ff-only`、SVNで`update`を実行します。Diff／LogはCLI出力をpager
-（未設定時はeditor）で表示します。
+`branch`では`list`／`create`／`create-switch`／`rename`／`delete`を入力して操作を選びます。
+操作対象は既存のPhase2操作と同じく、選択、hover、現在ディレクトリの順です。
 
-Commitは一時メッセージファイルをeditorで開き、空白・コメントだけのメッセージは実行しません。
-Gitの既定`commit.git_mode = "paths"`では確認画面に列挙したパスだけが暗黙stageされます。
-`staged`ではstage済み内容だけをコミットします。
+## Git操作の安全仕様
 
-Discardは必ず確認し、未追跡・ignoredファイルを除外します。ディレクトリは`revert`のタイプ
-確認を要求し、未追跡ファイルの削除は行いません。成功した操作は状態を破棄して再fetchします。
+Pushはcurrent branchとupstreamを確認します。upstreamがなければremoteを選び、
+`git push --set-upstream <remote> <branch>`を実行します。認証入力のためPush中はYaziの
+端末を隠し、Gitの標準入出力を継承します。
 
-## 状態記号
+Branch名は`@`／`-`始まりを拒否し、`git check-ref-format --branch`で検証します。
+削除は`git branch -d`固定で、現在Branch・remote Branch・Force Deleteは対象外です。
+Switchはlocal Branchまたはremote tracking Branchへ切り替えます。自動stash、強制Switch、
+自動Discardは行いません。成功後はstatusを再fetchします。
 
-`C` conflict、`!` missing、`D` deleted、`R` replaced/renamed、`M` modified、`P` property
-modified、`A` added、`?` untracked、`L` locked、`X` external、`I` ignoredです。
-子孫の状態はディレクトリへ集約されます。
+## 状態と制約
 
-## 制約とトラブルシュート
+状態記号は`C` conflict、`!` missing、`D` deleted、`R` replaced/renamed、`M` modified、
+`P` property modified、`A` added、`?` untracked、`L` locked、`X` external、`I` ignoredです。
+実YaziのUI・認証入力、Windows／WSL、SVN CLI、SVN external等は別途確認が必要です。
+外部Diff／LogとWindows GUI連携はPhase 4です。
 
-- Git／SVN CLIがPATHに必要です。
-- 実Yaziの端末占有、editor／pager、Windows／WSLの操作は手動確認が必要です。
-- SVNのexternal／obstructed／incompleteは実作業コピーで未検証です。
-- Git Push、Branch、Switch、外部Diff／LogはPhase 3以降です。
-
-テストは次で実行します。
+## テスト
 
 ```bash
 cd vcs.yazi
 lua tests/run.lua
 ```
+
+Phase3のGitローカルbare repository結合テストを含みます。

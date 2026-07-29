@@ -1,19 +1,17 @@
 # vcs.yazi
 
-Git／SVNの状態表示とPhase 2の共通操作を提供するYaziプラグインです。
-ルートの[README](../README.md)と[要件定義](../docs/requirements.md)を参照してください。
+Git／SVNの状態表示、Phase 2の共通操作、Phase 3のGit操作を提供するYaziプラグインです。
 
-実装済みの操作:
+Phase 3の操作:
 
-- Status refresh: `plugin vcs -- status`
-- Update: `plugin vcs -- update`
-- Commit: `plugin vcs -- commit`
-- CLI Diff: `plugin vcs -- diff`
-- CLI Log: `plugin vcs -- log`
-- Discard changes: `plugin vcs -- discard`
+- Git Push: `plugin vcs -- push`
+- Branch一覧／作成／作成後Switch／名称変更／安全削除: `plugin vcs -- branch`
+- Git Switch（ローカル／remote tracking）: `plugin vcs -- switch`
 
-操作は引数配列でCLIへ渡し、root外のパスを拒否します。Commitはエディタで一時
-メッセージファイルを編集し、Discardは確認後に実行します。CLIの出力はpagerまたは
-設定したeditorで表示します。
+Pushはupstreamを確認し、未設定時はremoteを選んで`--set-upstream`を使います。
+認証入力の可能性があるため、Pushは`ui.hide()`配下の継承端末で実行します。
 
-未実装: Git Push、Branch、Switch、外部Diff／Log、Windows GUI連携。
+Branch名はCLI実行前に検証し、削除は`git branch -d`固定です。現在Branch・remote Branch・
+Force Deleteは対象外です。Switchは自動stash／強制破棄を行わず、CLI失敗を通知します。
+
+未実装: 外部Diff／Log、Windows GUI連携、WSLパス変換。

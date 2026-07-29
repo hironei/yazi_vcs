@@ -1,18 +1,11 @@
 # TODO
 
-未着手・未完了の作業一覧。完了したら [done.md](done.md) へ移すこと。
-
 ## 目視確認（ユーザー対応が必要）
 
-- [ ] 実際のYazi画面で状態記号の色・位置とPhase2キー操作を確認する
+- [ ] 実際のYazi画面でPhase2／3のキー操作と通知を確認する
+- [ ] Git認証が必要なPushをWindows 11のGit Bash／WSLで確認する
+- [ ] Git Branch入力UIとpager表示を実Yaziで確認する
 - [ ] `git.yazi`との同時利用で記号が二重表示されないか確認する
-- [ ] Windows 11のGit Bash／WSLでエディタ・pager・認証入力を確認する
-
-## Phase 3：Git拡張
-
-- [ ] Git Push（upstream未設定時のremote選択を含む）
-- [ ] Git Branch一覧／作成／名称変更／安全削除
-- [ ] Git Switchとリモート追跡Branch対応
 
 ## Phase 4：外部連携・改善
 

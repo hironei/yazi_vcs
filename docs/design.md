@@ -1,35 +1,35 @@
 # vcs.yazi 設計書（as-built）
 
-対象: `vcs.yazi/` Phase 2。
+対象: `vcs.yazi/` Phase 3。
 
 ## 構成
 
-- `main.lua`: fetcher、先頭列描画、status refresh、entry dispatch
-- `actions.lua`: Update／Commit／Diff／Log／Discardの非同期操作
-- `core-runner.lua`: `Command:spawn()`による非対話実行、タイムアウト、`ui.hide()`による対話実行
-- `core-targets.lua`: 対象選択、root境界、未追跡除外、確認文
-- `core-commands.lua`: Git／SVNの安全な引数配列
-- `core-state.lua`: root別statusと操作ロック
-- `backend-git.lua`／`backend-svn.lua`: Status取得と解析
+- `main.lua`: fetcher、状態表示、status refresh、操作dispatch
+- `actions.lua`: Phase 2の共通操作
+- `git-actions.lua`: Push、Branch、SwitchのYazi操作フロー
+- `core-git.lua`: Gitの引数構築、Branch／remote出力解析、Branch名入力検証
+- `core-runner.lua`: 非対話runner、タイムアウト、`ui.hide()`による対話実行
+- `core-state.lua`: root別statusと同一root操作ロック
 
-## 操作フロー
+## Git操作フロー
 
 ```text
-selected -> hovered -> current
-        │
-        ▼
-root検出 -> root相対化・境界検証 -> backend引数構築
-        │
-        ├─ Update/Commit/Discard -> runner -> 成功時state破棄 -> refresh
-        └─ Diff/Log -> runner -> 一時出力ファイル -> pager/editor
+Git root検出 -> 操作ロック -> CLI前提確認
+      │
+      ├─ Push: current branch -> upstream -> remote選択 -> ui.hide + git push
+      ├─ Branch: list/入力 -> branch名検証 -> branch/confirm -> state破棄 + refresh
+      └─ Switch: local/remote判定 -> switch/--track -> state破棄 + refresh
 ```
 
-CommitはGitの`paths`モードを既定とし、選択パスを`--`以降へ渡します。これにより
-選択外のstage済み変更を巻き込みません。`staged`モードではパスを渡しません。
-Discardでは未追跡・ignored状態を操作対象から除外し、ディレクトリは再帰確認を要求します。
+Pushはupstreamがあれば`git push`、なければremoteと現在Branchを明示して
+`git push --set-upstream <remote> <branch>`を実行します。Force系引数は構築しません。
+
+Branch削除は`git branch -d`のみを使用し、現在Branchとremote Branchを拒否します。
+Switchはremote tracking Branchがローカルにない場合のみ`git switch --track`を使い、
+自動stashや`--discard-changes`は実装しません。
 
 ## 検証境界
 
-純粋Luaで設定マージ、パス境界、対象選択、引数配列、出力整形を検証します。実CLIの
-Git／SVN Status結合テストは既存テストで継続します。実Yaziの`ui.hide()`、editor／pager、
-Windows／WSL、SVNの未検証状態は手動確認が必要です。
+純粋LuaテストでGit引数・Branch名検証・Branch出力解析を確認し、ローカルbare repositoryで
+Push、upstream、Branch作成／名称変更／安全削除、remote tracking Switch、detached HEADを
+結合検証します。実Yazi UI・認証入力・SVN CLI・Windows／WSLは手動確認が必要です。

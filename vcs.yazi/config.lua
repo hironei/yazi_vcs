@@ -24,6 +24,11 @@ M.defaults = {
 	},
 	discard = { confirm = true, recursive_confirm_text = "revert", include_untracked = false },
 	runner = { timeout_ms = 30000 },
+	git = {
+		push = { default_remote = "origin", set_upstream_if_missing = true, allow_force = false },
+		branch = { show_remote = true, allow_force_delete = false, validate_name = true },
+		switch = { auto_track_remote = true, auto_stash = false, allow_discard_changes = false },
+	},
 }
 
 function M.deep_merge(defaults, overrides)
