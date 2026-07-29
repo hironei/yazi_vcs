@@ -10,3 +10,15 @@
 - README、ユーザーマニュアル、設計書、TODOをPhase3へ更新
 - Gitローカルbare repository結合テストを追加
 - Lua 5.5テスト: 157 passed / 0 failed
+
+## 2026-07-29 — vcs.yazi Phase 4（外部連携・改善）実装
+
+- `core-external.lua`: 外部コマンド設定検証、プレースホルダー展開、WSL／Git Bash環境判定
+- `actions.lua`: `diff --external`／`log --external`、TUIの占有実行、GUIの非占有起動、外部GUIパス変換
+- `core-runner.lua`: GUI向け非待機`launch`を追加
+- `config.lua`: `diff.*_external`、`log.*_external`、`path.external_style`を追加
+- `main.lua`: fetcherへ重複パス抑止を追加し、表示中パスだけのstatus取得を維持
+- `examples/svn-difft-wrapper.sh`: SVN固定引数を外部2ファイルDiffへ変換するラッパー例
+- README、ユーザーマニュアル、設計書、TODOをPhase4へ更新
+- 外部設定・環境判定・設定マージテストを追加
+- Lua 5.5テスト: 172 passed / 0 failed

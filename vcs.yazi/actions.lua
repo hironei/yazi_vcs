@@ -1,7 +1,8 @@
 -- actions.lua
--- Phase 2 common VCS operations.
+-- Phase 2 common VCS operations plus Phase 4 external viewers.
 local Config = require(".config")
 local Detector = require(".core-detector")
+local External = require(".core-external")
 local Notify = require(".core-notify")
 local Path = require(".core-path")
 local Runner = require(".core-runner")
@@ -45,7 +46,7 @@ local function selected_targets(root)
 		Notify.error("Refusing VCS operation outside the repository: %s", invalid)
 		return nil
 	end
-	return relative, scope, info
+	return relative, scope, info, absolute
 end
 
 local function run(root, command, args, cfg)
@@ -147,6 +148,57 @@ local function display_file(path, cfg)
 	return true
 end
 
+local function debug_log(message)
+	if type(ya.dbg) == "function" then pcall(ya.dbg, message) end
+end
+
+local function convert_external_path(path, style, environment, root, cfg)
+	if style ~= "windows" or (environment ~= "wsl" and environment ~= "git-bash") then return path end
+	local converter = External.converter(environment)
+	if not converter then return path end
+	local output, err = Runner.run({ command = converter, args = { "-w", "--", path }, cwd = root }, cfg.runner.timeout_ms)
+	if output and output.status.success then
+		local converted = tostring(output.stdout):gsub("%s+$", "")
+		if converted ~= "" then return converted end
+	end
+	debug_log("VCS external path conversion unavailable for " .. tostring(path) .. ": " .. Runner.error_text(output, err))
+	return path
+end
+
+local function external_context(root, absolute, cfg, spec)
+	local environment = External.environment({
+		WSL_INTEROP = os.getenv("WSL_INTEROP"),
+		WSL_DISTRO_NAME = os.getenv("WSL_DISTRO_NAME"),
+		WSLENV = os.getenv("WSLENV"),
+		MSYSTEM = os.getenv("MSYSTEM"),
+		MSYSTEM_PREFIX = os.getenv("MSYSTEM_PREFIX"),
+		CYGWIN = os.getenv("CYGWIN"),
+	}, ya.target_family())
+	local style = External.path_style(spec.path_style or (cfg.path and cfg.path.external_style), environment)
+	local root_path = convert_external_path(root, style, environment, root, cfg)
+	local targets = {}
+	for _, path in ipairs(absolute or {}) do targets[#targets + 1] = convert_external_path(path, style, environment, root, cfg) end
+	local file = targets[1] or root_path
+	return { root = root_path, file = file, targets = targets, revision = spec.revision or "" }
+end
+
+local function run_external(root, operation, spec, absolute, cfg)
+	local valid, reason = External.validate(spec)
+	if not valid then return Notify.error("%s is not configured: %s", operation, reason) end
+	local context = external_context(root, absolute, cfg, spec)
+	local args, expand_err = External.expand_args(spec.args, context)
+	if not args then return Notify.error("%s configuration is invalid: %s", operation, expand_err) end
+	local command = { command = spec.command, args = args, cwd = root }
+	if spec.interactive == false then
+		local launched, launch_err = Runner.launch(command)
+		if not launched then return failure(operation, nil, launch_err) end
+		return Notify.info("%s launched.", operation)
+	end
+	local status, err = Runner.interactive(command)
+	if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
+	Notify.info("%s completed.", operation)
+end
+
 function M.update()
 	local cfg = Config.get()
 	local _, _, cwd = current_context()
@@ -194,19 +246,23 @@ function M.commit()
 	end)
 end
 
-local function view_operation(operation, config_section, kind_builder)
+local function view_operation(operation, config_section, kind_builder, external)
 	local cfg = Config.get()
 	local _, _, cwd = current_context()
 	local kind, root = context_root(cwd, cfg)
 	if not kind then return end
 	with_lock(root, operation, function()
-		local paths = selected_targets(root)
+		local paths, _, _, absolute = selected_targets(root)
 		if not paths then return end
-		local configured = cfg[config_section] and cfg[config_section][kind .. "_cli"]
+		local section = cfg[config_section] or {}
+		if external then
+			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg)
+		end
+		local configured = section[kind .. "_cli"]
 		local fallback = kind_builder(kind, paths)
 		local command, args
 		if configured then
-			command, args = argv(configured[1] == kind and configured or configured, kind, fallback)
+			command, args = argv(configured, kind, fallback)
 			args = expand_template(args, paths)
 		else
 			command, args = kind, fallback
@@ -222,16 +278,16 @@ local function view_operation(operation, config_section, kind_builder)
 	end)
 end
 
-function M.diff()
+function M.diff(external)
 	return view_operation("Diff", "diff", function(kind, paths)
 		return kind == "git" and Commands.git_diff(paths) or Commands.svn_diff(paths)
-	end)
+	end, external)
 end
 
-function M.log()
+function M.log(external)
 	return view_operation("Log", "log", function(kind, paths)
 		return kind == "git" and Commands.git_log(paths) or Commands.svn_log(paths)
-	end)
+	end, external)
 end
 
 function M.discard()
@@ -245,7 +301,7 @@ function M.discard()
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
 		local kept, excluded = Targets.exclude_untracked(paths, statuses)
-		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: %s", table.concat(excluded, ", ")) end
+		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
 		local recursive, windows = false, ya.target_family() == "windows"
 		for _, path in ipairs(kept) do
@@ -266,8 +322,18 @@ function M.discard()
 	end)
 end
 
-function M.entry(action)
-	local handlers = { update = M.update, commit = M.commit, diff = M.diff, log = M.log, discard = M.discard }
+local function named_external(args)
+	return args and (args.external == true or args.external == "true" or args[2] == "--external") or false
+end
+
+function M.entry(action, args)
+	local handlers = {
+		update = M.update,
+		commit = M.commit,
+		diff = function() return M.diff(named_external(args)) end,
+		log = function() return M.log(named_external(args)) end,
+		discard = M.discard,
+	}
 	if handlers[action] then return handlers[action]() end
 	Notify.warn("Unknown action: %s", tostring(action))
 end

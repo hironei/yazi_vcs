@@ -16,12 +16,17 @@ M.defaults = {
 	diff = {
 		git_cli = { "git", "diff", "--", "{targets}" },
 		svn_cli = { "svn", "diff", "--", "{targets}" },
+		git_external = nil,
+		svn_external = nil,
 	},
 	log = {
 		git_cli = { "git", "log", "--decorate", "--oneline", "--graph", "--", "{targets}" },
 		git_cli_all = { "git", "log", "--decorate", "--oneline", "--graph", "--all" },
 		svn_cli = { "svn", "log", "--", "{targets}" },
+		git_external = nil,
+		svn_external = nil,
 	},
+	path = { external_style = "auto" },
 	discard = { confirm = true, recursive_confirm_text = "revert", include_untracked = false },
 	runner = { timeout_ms = 30000 },
 	git = {

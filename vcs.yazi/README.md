@@ -1,17 +1,16 @@
 # vcs.yazi
 
-Git／SVNの状態表示、Phase 2の共通操作、Phase 3のGit操作を提供するYaziプラグインです。
+Git／SVNの状態表示、Phase 2の共通操作、Phase 3のGit操作、Phase 4の外部Diff／Log連携を提供するYaziプラグインです。
 
-Phase 3の操作:
+Phase 4の操作:
 
-- Git Push: `plugin vcs -- push`
-- Branch一覧／作成／作成後Switch／名称変更／安全削除: `plugin vcs -- branch`
-- Git Switch（ローカル／remote tracking）: `plugin vcs -- switch`
+- CLI Diff／Log: `plugin vcs -- diff`、`plugin vcs -- log`
+- 外部Diff／Log: `plugin vcs -- diff --external`、`plugin vcs -- log --external`
+- TUIは`interactive = true`で`ui.hide()`配下、GUIは`interactive = false`で非占有起動
+- WSLの`wslpath -w`、Git Bashの`cygpath -w`による外部GUIパス変換
 
-Pushはupstreamを確認し、未設定時はremoteを選んで`--set-upstream`を使います。
-認証入力の可能性があるため、Pushは`ui.hide()`配下の継承端末で実行します。
+外部コマンドは`diff.git_external`／`diff.svn_external`／`log.git_external`／`log.svn_external`へ、`command`と`args`を配列で設定します。`{root}`、`{file}`、`{targets}`、`{revision}`を使用できます。`{targets}`は対象ごとに別引数へ展開されます。
 
-Branch名はCLI実行前に検証し、削除は`git branch -d`固定です。現在Branch・remote Branch・
-Force Deleteは対象外です。Switchは自動stash／強制破棄を行わず、CLI失敗を通知します。
+SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-wrapper.sh`](../examples/svn-difft-wrapper.sh)を参照してください。
 
-未実装: 外部Diff／Log、Windows GUI連携、WSLパス変換。
+既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。

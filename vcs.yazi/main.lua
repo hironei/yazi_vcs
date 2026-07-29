@@ -1,6 +1,6 @@
 --- @since 26.5.6
 -- main.lua
--- Fetcher/status display plus Phase 2 and Phase 3 Git actions.
+-- Fetcher/status display plus Phase 2, Phase 3, and Phase 4 actions.
 local Config = require(".config")
 local Detector = require(".core-detector")
 local Status = require(".core-status")
@@ -39,10 +39,13 @@ function M:fetch(job)
 	local cwd_str, cfg = tostring(cwd), Config.get()
 	local kind, root = Detector.detect(cwd, cfg.detection.priority)
 	if not kind then State.forget(cwd_str); return true end
-	local root_str, queried = tostring(root), {}
+	local root_str, queried, seen = tostring(root), {}, {}
 	for _, file in ipairs(job.files) do
 		local rel = Path.strip_prefix(root_str, tostring(file.url))
-		if rel then queried[#queried + 1] = rel end
+		if rel and not seen[rel] then
+			seen[rel] = true
+			queried[#queried + 1] = rel
+		end
 	end
 	local changed, excluded, err = BACKENDS[kind].fetch(root_str, queried, { ignore_externals = cfg.status.ignore_externals })
 	if err then return true, Err("Cannot run `%s status`: %s", kind, err) end
@@ -58,7 +61,7 @@ function M:entry(job)
 	local action = job.args[1]
 	if action == "status" then return M.refresh_status() end
 	if action == "push" or action == "branch" or action == "switch" then return GitActions.entry(action, job.args) end
-	return Actions.entry(action)
+	return Actions.entry(action, job.args)
 end
 
 function M.refresh_status()

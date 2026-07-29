@@ -1,35 +1,36 @@
 # vcs.yazi 設計書（as-built）
 
-対象: `vcs.yazi/` Phase 3。
+対象: `vcs.yazi/` Phase 4。
 
 ## 構成
 
 - `main.lua`: fetcher、状態表示、status refresh、操作dispatch
-- `actions.lua`: Phase 2の共通操作
-- `git-actions.lua`: Push、Branch、SwitchのYazi操作フロー
-- `core-git.lua`: Gitの引数構築、Branch／remote出力解析、Branch名入力検証
-- `core-runner.lua`: 非対話runner、タイムアウト、`ui.hide()`による対話実行
+- `actions.lua`: Update／Commit／CLI Diff／CLI Log／Discard、外部Diff／Logの実行フロー
+- `git-actions.lua`: Push、Branch、SwitchのGit操作フロー
+- `core-external.lua`: 外部環境判定、パス形式、プレースホルダー展開、設定検証
+- `core-runner.lua`: 非対話runner、タイムアウト、`ui.hide()`による対話実行、GUI非占有起動
 - `core-state.lua`: root別statusと同一root操作ロック
 
-## Git操作フロー
+## 外部操作フロー
 
 ```text
-Git root検出 -> 操作ロック -> CLI前提確認
-      │
-      ├─ Push: current branch -> upstream -> remote選択 -> ui.hide + git push
-      ├─ Branch: list/入力 -> branch名検証 -> branch/confirm -> state破棄 + refresh
-      └─ Switch: local/remote判定 -> switch/--track -> state破棄 + refresh
+action + --external -> root/targets検出 -> VCS別external設定検証
+       -> {root,file,targets,revision}展開
+       -> WSL/Git Bashの必要時パス変換
+       -> interactive: ui.hide + wait
+          non-interactive: stdin/stdout/stderr切断 + spawn
 ```
 
-Pushはupstreamがあれば`git push`、なければremoteと現在Branchを明示して
-`git push --set-upstream <remote> <branch>`を実行します。Force系引数は構築しません。
+外部コマンドもshell文字列連結を使わず、commandと引数配列を分離します。`{targets}`は対象ごとに別引数へ展開し、埋め込み形式は曖昧になるため拒否します。
 
-Branch削除は`git branch -d`のみを使用し、現在Branchとremote Branchを拒否します。
-Switchはremote tracking Branchがローカルにない場合のみ`git switch --track`を使い、
-自動stashや`--discard-changes`は実装しません。
+## パス変換
+
+VCS CLIはroot-relativeまたは実行環境のnative形式を使います。外部コマンドの`{root}`／`{file}`／`{targets}`に対してのみ、`path_style`または`path.external_style`に従って変換します。WSLでは`wslpath -w`、Git Bashでは`cygpath -w`をRunner経由で呼び、失敗時は元の値を保持してデバッグログへ記録します。
+
+## 性能境界
+
+fetcherは表示中ファイルの相対パスだけをbackendへ渡し、Git statusは`--no-optional-locks`とporcelain v2 NUL出力を使用します。全リポジトリ走査を避けることで大規模リポジトリでもYaziの表示範囲に処理を限定します。
 
 ## 検証境界
 
-純粋LuaテストでGit引数・Branch名検証・Branch出力解析を確認し、ローカルbare repositoryで
-Push、upstream、Branch作成／名称変更／安全削除、remote tracking Switch、detached HEADを
-結合検証します。実Yazi UI・認証入力・SVN CLI・Windows／WSLは手動確認が必要です。
+純粋Luaテストで外部設定、プレースホルダー、環境判定、既存CLI引数を確認し、ローカルbare repositoryで既存Git操作を結合検証します。実Yazi UI、外部TUI、Windows GUI、WSL／Git Bashの実変換、SVN実CLIは手動確認が必要です。

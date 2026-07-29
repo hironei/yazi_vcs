@@ -46,9 +46,7 @@ function M.summary(text, limit)
 end
 
 local function append_line(lines, line)
-	if line then
-		lines[#lines + 1] = line
-	end
+	if line then lines[#lines + 1] = line end
 end
 
 --- Run a non-interactive command with piped output. The timeout uses the
@@ -63,14 +61,10 @@ function M.run(spec, timeout_ms)
 		:stdin(Command.NULL)
 		:stdout(Command.PIPED)
 		:stderr(Command.PIPED)
-	if spec.cwd then
-		command:cwd(spec.cwd)
-	end
+	if spec.cwd then command:cwd(spec.cwd) end
 
 	local child, spawn_err = command:spawn()
-	if not child then
-		return nil, spawn_err
-	end
+	if not child then return nil, spawn_err end
 
 	local stdout, stderr = {}, {}
 	local timeout = tonumber(timeout_ms or 0) or 0
@@ -101,14 +95,8 @@ function M.run(spec, timeout_ms)
 	end
 
 	local status, wait_err = child:wait()
-	if not status then
-		return nil, wait_err
-	end
-	local result = {
-		status = status,
-		stdout = table.concat(stdout),
-		stderr = table.concat(stderr),
-	}
+	if not status then return nil, wait_err end
+	local result = { status = status, stdout = table.concat(stdout), stderr = table.concat(stderr) }
 	if timed_out then
 		result.status.success = false
 		result.timed_out = true
@@ -130,17 +118,31 @@ function M.interactive(spec)
 			:stdin(Command.INHERIT)
 			:stdout(Command.INHERIT)
 			:stderr(Command.INHERIT)
-		if spec.cwd then
-			command:cwd(spec.cwd)
-		end
+		if spec.cwd then command:cwd(spec.cwd) end
 		local result, command_err = command:status()
 		return result, command_err
 	end, debug.traceback)
 	permit:drop()
-	if not ok then
-		return nil, status
-	end
+	if not ok then return nil, status end
 	return status, err
+end
+
+--- Launch a non-interactive GUI process without occupying Yazi or waiting for
+--- its window to close. stdout/stderr are disconnected so GUI tools cannot
+--- block on inherited terminal streams.
+---@param spec table
+---@return boolean|nil launched
+---@return any? err
+function M.launch(spec)
+	local command = Command(spec.command)
+		:arg(spec.args or {})
+		:stdin(Command.NULL)
+		:stdout(Command.NULL)
+		:stderr(Command.NULL)
+	if spec.cwd then command:cwd(spec.cwd) end
+	local child, err = command:spawn()
+	if not child then return nil, err end
+	return true
 end
 
 return M

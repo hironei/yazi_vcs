@@ -7,7 +7,7 @@ end
 local t = require("support")
 local suites = {
 	"test-config", "test-core-path", "test-core-status", "test-core-detector", "test-core-targets",
-	"test-core-commands", "test-core-runner", "test-core-git", "test-support", "test-backend-git",
+	"test-core-commands", "test-core-runner", "test-core-git", "test-core-external", "test-support", "test-backend-git",
 	"test-backend-svn", "test-operations", "test-git-phase3",
 }
 for _, name in ipairs(suites) do
