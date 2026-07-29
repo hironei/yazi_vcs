@@ -103,10 +103,10 @@ function M:fetch(job)
 		return true, Err("Cannot run `%s status`: %s", kind, err)
 	end
 
-	-- Roll file-level changes up onto the ancestor directories being
-	-- listed, when what's being fetched is itself directory rows
-	-- (requirements §8.6).
-	if cfg.status.aggregate_directories and job.files[1].cha.is_dir then
+	-- Roll file-level changes up onto ancestor directories for every
+	-- fetched listing; mixed file/directory batches must not depend on
+	-- which entry happens to be first (requirements §8.6).
+	if cfg.status.aggregate_directories then
 		Status.merge(changed, Status.bubble_up(changed))
 	end
 

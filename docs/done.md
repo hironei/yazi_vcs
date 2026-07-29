@@ -53,3 +53,8 @@
 - Issue #5: Git/SVN backendの fetch() 返り値を (changed, excluded, err) へ統一
 - Issue #6: SVNの property_modified を external より優先
 - 各Issueの再発条件を純粋Luaテストへ追加
+
+## 2026-07-29 — GitHub Issue #7 修正
+
+- ディレクトリ状態集約を `job.files[1]` の種別に依存させず、設定有効時は全fetch結果へ適用
+- 混在一覧で先頭がファイルでも配下の変更を親ディレクトリへ集約できるよう修正
