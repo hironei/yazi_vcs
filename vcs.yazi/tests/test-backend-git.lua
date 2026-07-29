@@ -105,11 +105,9 @@ return function(t)
 		return
 	end
 
-	local dir = os.tmpname()
-	os.remove(dir)
-	os.execute(('mkdir "%s"'):format(dir))
+	local dir = t.temp_dir()
 	local function run(cmd)
-		os.execute(('cd /d "%s" && %s'):format(dir, cmd))
+		t.run_in_dir(dir, cmd)
 	end
 	run("git init -q -b main .")
 	run("git config user.email t@t.com")
@@ -120,13 +118,12 @@ return function(t)
 	run("git commit -q -m init")
 	run("echo changed>> tracked.txt")
 	run("echo x> new.txt")
-	run("type nul > a.log")
+	run(t.is_windows and "type nul > a.log" or ": > a.log")
 	run("git mv tracked.txt renamed.txt")
 
-	local proc = io.popen(
-		('cd /d "%s" && git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching'):format(
-			dir
-		)
+	local proc = t.capture_in_dir(
+		dir,
+		"git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching"
 	)
 	local out = proc:read("*a")
 	proc:close()
@@ -136,5 +133,5 @@ return function(t)
 	t.eq(changed["new.txt"], "untracked", "[integration] real git: untracked file detected")
 	t.deep_eq(excluded, {}, "[integration] real git: a.log is an ignored *file*, not a directory")
 
-	os.execute(('rmdir /s /q "%s"'):format(dir))
+	t.remove_tree(dir)
 end

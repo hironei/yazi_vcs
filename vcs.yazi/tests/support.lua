@@ -7,6 +7,51 @@
 -- loadable here at all).
 local M = { pass = 0, fail = 0 }
 
+M.is_windows = package.config:sub(1, 1) == "\\"
+
+function M.shell_quote(value)
+	value = tostring(value)
+	if M.is_windows then
+		return '"' .. value:gsub('"', '\\"') .. '"'
+	end
+	return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+
+function M.path_join(left, right)
+	local separator = M.is_windows and "\\" or "/"
+	return left .. separator .. right
+end
+
+function M.run_in_dir(dir, command)
+	local cd = M.is_windows and "cd /d " or "cd "
+	return os.execute(cd .. M.shell_quote(dir) .. " && " .. command)
+end
+
+function M.capture_in_dir(dir, command)
+	local cd = M.is_windows and "cd /d " or "cd "
+	return io.popen(cd .. M.shell_quote(dir) .. " && " .. command)
+end
+
+function M.temp_dir()
+	local dir = os.tmpname()
+	os.remove(dir)
+	local mkdir = M.is_windows and "mkdir " or "mkdir -p "
+	os.execute(mkdir .. M.shell_quote(dir))
+	return dir
+end
+
+function M.remove_tree(dir)
+	local command = M.is_windows and "rmdir /s /q " or "rm -rf -- "
+	return os.execute(command .. M.shell_quote(dir))
+end
+
+function M.to_file_url(path)
+	if M.is_windows then
+		return "file:///" .. path:gsub("\\\\", "/")
+	end
+	return "file://" .. path
+end
+
 local function dump(v, seen)
 	if type(v) ~= "table" then
 		return tostring(v)

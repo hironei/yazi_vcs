@@ -253,14 +253,13 @@ return function(t)
 		return
 	end
 
-	local base = os.getenv("TEMP") or os.getenv("TMP") or "."
-	local dir = base .. "\\vcs-yazi-test-" .. tostring(os.time())
-	os.execute(('mkdir "%s"'):format(dir))
-	os.execute(('svnadmin create "%s\\repo"'):format(dir))
-	os.execute(('svn checkout -q --non-interactive "file:///%s/repo" "%s\\wc"'):format((dir:gsub("\\", "/")), dir))
-	local wc = dir .. "\\wc"
+	local dir = t.temp_dir()
+	local repo = t.path_join(dir, "repo")
+	local wc = t.path_join(dir, "wc")
+	os.execute(("svnadmin create %s"):format(t.shell_quote(repo)))
+	os.execute(("svn checkout -q --non-interactive %s %s"):format(t.shell_quote(t.to_file_url(repo)), t.shell_quote(wc)))
 	local function runwc(cmd)
-		os.execute(('cd /d "%s" && %s'):format(wc, cmd))
+		t.run_in_dir(wc, cmd)
 	end
 	runwc('echo base> tracked.txt')
 	runwc("svn add -q tracked.txt")
@@ -268,7 +267,7 @@ return function(t)
 	runwc('echo changed>> tracked.txt')
 	runwc('echo x> new.txt')
 
-	local proc = io.popen(('cd /d "%s" && svn status --xml --no-ignore --ignore-externals -- tracked.txt new.txt'):format(wc))
+	local proc = t.capture_in_dir(wc, "svn status --xml --no-ignore --ignore-externals -- tracked.txt new.txt")
 	local out = proc:read("*a")
 	proc:close()
 
@@ -276,5 +275,5 @@ return function(t)
 	t.eq(changed["tracked.txt"], "modified", "[integration] real svn: modified file detected")
 	t.eq(changed["new.txt"], "untracked", "[integration] real svn: unversioned file detected")
 
-	os.execute(('rmdir /s /q "%s"'):format(dir))
+	t.remove_tree(dir)
 end

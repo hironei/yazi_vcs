@@ -63,3 +63,8 @@
 
 - 手動status refreshで現在のURLからVCSルートを再検出するよう変更
 - 初回fetch前で状態キャッシュが未作成でも `refresh` を発行できるよう修正
+
+## 2026-07-29 — GitHub Issue #9 修正
+
+- 結合テストの一時ディレクトリ、作業ディレクトリ実行、パス引用、file URL、削除処理をOS別ヘルパーへ集約
+- Git/SVNの実CLI結合テストをWindowsとPOSIX shellの両方で実行できるよう修正
