@@ -78,7 +78,11 @@ end)
 --- sync context — `ya.sync` bridges async callers, mirroring the
 --- official `zoxide.lua` preset plugin's own `cx.active.current.cwd`
 --- access pattern).
----@return string
+---@return Url
+M.current_url = ya.sync(function()
+	return cx.active.current.cwd
+end)
+
 M.current_cwd = ya.sync(function()
 	return tostring(cx.active.current.cwd)
 end)

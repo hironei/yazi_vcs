@@ -145,8 +145,10 @@ end
 --- for the current directory's VCS root and ask Yazi to re-run its
 --- fetchers.
 function M.refresh_status()
-	local cwd = State.current_cwd()
-	local root = State.root_of(cwd)
+	local cwd = State.current_url()
+	local cfg = Config.get()
+	local _, detected_root = Detector.detect(cwd, cfg.detection.priority)
+	local root = detected_root and tostring(detected_root) or State.root_of(tostring(cwd))
 	if not root then
 		Notify.warn("Not inside a Git or SVN working copy.")
 		return

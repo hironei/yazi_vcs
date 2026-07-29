@@ -7,7 +7,7 @@
 ## バグ修正（レビュー検出分、2026-07-29）
 
 - [x] [#7](https://github.com/hironei/yazi_vcs/issues/7) — 混在一覧で先頭がファイルの場合、ディレクトリ配下の変更が集約表示されない
-- [ ] [#8](https://github.com/hironei/yazi_vcs/issues/8) — 初回fetch完了前の手動Status更新が、未保存のrootを非VCSとして扱う
+- [x] [#8](https://github.com/hironei/yazi_vcs/issues/8) — 初回fetch完了前の手動Status更新が、未保存のrootを非VCSとして扱う
 - [ ] [#9](https://github.com/hironei/yazi_vcs/issues/9) — Git/SVN結合テストがWindowsのcmd構文に固定され、Linux/macOSで実行できない
 
 ## 目視確認（ユーザー対応が必要）
