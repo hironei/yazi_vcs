@@ -27,12 +27,16 @@ M.defaults = {
 		svn_external = nil,
 	},
 	path = { external_style = "auto" },
-	discard = { confirm = true, recursive_confirm_text = "revert", include_untracked = false },
+	discard = { confirm = true, recursive_confirm_text = "revert" },
 	runner = { timeout_ms = 30000 },
 	git = {
-		push = { default_remote = "origin", set_upstream_if_missing = true, allow_force = false },
-		branch = { show_remote = true, allow_force_delete = false, validate_name = true },
-		switch = { auto_track_remote = true, auto_stash = false, allow_discard_changes = false },
+		-- Force Push, Force Delete, auto-stash, and forced Switch are
+		-- mandatory-safety exclusions (requirements.md §25), not
+		-- configurable behavior — there is deliberately no toggle for any
+		-- of them here.
+		push = { default_remote = "origin", set_upstream_if_missing = true },
+		branch = { show_remote = true },
+		switch = { auto_track_remote = true },
 	},
 }
 
