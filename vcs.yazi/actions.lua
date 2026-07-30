@@ -4,7 +4,6 @@ local Config = require(".config")
 local Detector = require(".core-detector")
 local External = require(".core-external")
 local Notify = require(".core-notify")
-local Path = require(".core-path")
 local Runner = require(".core-runner")
 local State = require(".core-state")
 local Targets = require(".core-targets")
@@ -292,20 +291,22 @@ end
 
 function M.discard()
 	local cfg = Config.get()
-	local _, _, cwd, info = current_context()
+	local _, _, cwd = current_context()
 	local kind, root = context_root(cwd, cfg)
 	if not kind then return end
 	with_lock(root, "Discard", function()
-		local paths = selected_targets(root)
+		local paths, _, info, absolute = selected_targets(root)
 		if not paths then return end
+		local abs_by_rel = {}
+		for i, path in ipairs(paths) do abs_by_rel[path] = absolute[i] end
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
 		local kept, excluded = Targets.exclude_untracked(paths, statuses)
 		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
-		local recursive, windows = false, ya.target_family() == "windows"
+		local recursive = false
 		for _, path in ipairs(kept) do
-			if info[Path.join_native(root, path, windows)] or info[Path.join_native(root, path, false)] then recursive = true end
+			if info[abs_by_rel[path]] then recursive = true end
 		end
 		local body = "Discard local changes?\n\n" .. Targets.describe(kept)
 		if recursive then
