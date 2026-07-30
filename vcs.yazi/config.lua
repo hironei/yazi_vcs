@@ -9,10 +9,15 @@ M.defaults = {
 		ignored = "I", clean = " ",
 	},
 	status = { order = 500, aggregate_directories = true, ignore_externals = true },
-	editor = { command = "nvim", args = {}, wait = true },
+	-- The editor always runs under ui.hide() and is always waited for
+	-- (requirements §11.1/§11.4) — a non-blocking GUI editor would need a
+	-- different commit flow entirely, so there is no `wait` toggle here.
+	editor = { command = "nvim", args = {} },
 	pager = { command = "less", args = { "-R" } },
 	update = { git = { "git", "pull", "--ff-only" }, svn = { "svn", "update" } },
-	commit = { default_scope = "selected", allow_empty_message = false, git_mode = "paths" },
+	-- Target scope is always selected > hovered > current (requirements
+	-- §7); there is no per-operation scope-restriction knob.
+	commit = { allow_empty_message = false, git_mode = "paths" },
 	diff = {
 		git_cli = { "git", "diff", "--", "{targets}" },
 		svn_cli = { "svn", "diff", "--", "{targets}" },
