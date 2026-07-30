@@ -146,7 +146,9 @@ function M.push()
 		-- Push may request credentials, so it deliberately bypasses the timeout
 		-- runner and inherits the terminal while Yazi is hidden.
 		local status, err = Runner.interactive({ command = "git", args = args, cwd = root })
-		if not status or not status.success then return fail("Git push", { status = status, stderr = "" }, err) end
+		if not status or not status.success then
+			return fail("Git push", status and { status = status, stderr = "" } or nil, err)
+		end
 		refresh(root, "Git push completed.")
 	end)
 end
