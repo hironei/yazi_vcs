@@ -2,16 +2,16 @@
 
 ## バグ修正（レビュー検出分、2026-07-30）
 
-- [ ] [#11](https://github.com/hironei/yazi_vcs/issues/11) — `runner.timeout_ms = 0`が実際にはタイムアウトを無効化しない
-- [ ] [#12](https://github.com/hironei/yazi_vcs/issues/12) — Git push起動失敗時、実spawnエラーが「exit code unknown」に握りつぶされる
-- [ ] [#13](https://github.com/hironei/yazi_vcs/issues/13) — Discardのディレクトリ再帰判定がスナップショット不整合でfalseになり得る
-- [ ] [#14](https://github.com/hironei/yazi_vcs/issues/14) — core-runner.luaが読み取り専用のStatusオブジェクトへ書き込んでいる
-- [ ] [#15](https://github.com/hironei/yazi_vcs/issues/15) — stdout/stderrの行がseparatorなしで連結されている
-- [ ] [#16](https://github.com/hironei/yazi_vcs/issues/16) — `git.branch.allow_force_delete`／`validate_name`が未使用
-- [ ] [#17](https://github.com/hironei/yazi_vcs/issues/17) — `git.switch.auto_stash`／`allow_discard_changes`が未使用
-- [ ] [#18](https://github.com/hironei/yazi_vcs/issues/18) — `git.push.allow_force`が未使用
-- [ ] [#19](https://github.com/hironei/yazi_vcs/issues/19) — `discard.include_untracked`が未使用
-- [ ] [#20](https://github.com/hironei/yazi_vcs/issues/20) — `commit.default_scope`／`editor.wait`が未使用
+- [x] [#11](https://github.com/hironei/yazi_vcs/issues/11) — `runner.timeout_ms = 0`が実際にはタイムアウトを無効化しない
+- [x] [#12](https://github.com/hironei/yazi_vcs/issues/12) — Git push起動失敗時、実spawnエラーが「exit code unknown」に握りつぶされる
+- [x] [#13](https://github.com/hironei/yazi_vcs/issues/13) — Discardのディレクトリ再帰判定がスナップショット不整合でfalseになり得る
+- [x] [#14](https://github.com/hironei/yazi_vcs/issues/14) — core-runner.luaが読み取り専用のStatusオブジェクトへ書き込んでいる
+- [x] [#15](https://github.com/hironei/yazi_vcs/issues/15) — stdout/stderrの行がseparatorなしで連結されている
+- [x] [#16](https://github.com/hironei/yazi_vcs/issues/16) — `git.branch.allow_force_delete`／`validate_name`（安全要件に反するため実装せず設定キーを削除）
+- [x] [#17](https://github.com/hironei/yazi_vcs/issues/17) — `git.switch.auto_stash`／`allow_discard_changes`（同上、削除）
+- [x] [#18](https://github.com/hironei/yazi_vcs/issues/18) — `git.push.allow_force`（同上、削除）
+- [x] [#19](https://github.com/hironei/yazi_vcs/issues/19) — `discard.include_untracked`（同上、削除）
+- [x] [#20](https://github.com/hironei/yazi_vcs/issues/20) — `commit.default_scope`／`editor.wait`（未実装機能のため設定キーを削除）
 
 ## 目視確認（ユーザー対応が必要）
 

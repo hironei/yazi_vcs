@@ -29,3 +29,13 @@
 - `timeout_ms=0`が無効化されない、Git push起動失敗時のエラー握りつぶし、Discard再帰判定のスナップショット不整合、core-runner.luaの読み取り専用Status書き込み・改行なし連結の5件はコード直接確認済み
 - `config.lua`で宣言されているが未使用の設定キー5件（`branch.allow_force_delete`／`validate_name`、`switch.auto_stash`／`allow_discard_changes`、`push.allow_force`、`discard.include_untracked`、`commit.default_scope`／`editor.wait`）をgrepで確認
 - Issue #11〜#20として起票
+
+## 2026-07-30 — GitHub Issue #11〜#20 修正
+
+- #11: `core-runner.lua`に純粋関数`next_poll()`を切り出し、`timeout_ms=0`（無効）時にevent=3を実タイムアウトとして扱わないよう修正。単体テスト追加
+- #12: `git-actions.lua`のPush失敗処理を、他の`fail()`呼び出し箇所と同じ`status and {...} or nil`パターンに統一し、spawn失敗時の実エラーを保持するよう修正
+- #13: `actions.lua`のDiscardが、`info`と`absolute`を`selected_targets()`内の単一の`current_context()`呼び出しから取得するよう統一。`Path.join_native`によるキー再構築をやめ、`view_operation()`と同じ構成に揃えた
+- #14/#15: `core-runner.lua`が`child:wait()`の返すStatusオブジェクトへ書き込むのをやめ、タイムアウト時は別テーブルへ差し替え。`table.concat`にseparator（`"\n"`）を明示
+- #16〜#19: `docs/requirements.md` §25「安全要件」（Force Delete／Force Push／自動stash／未追跡ファイル自動削除の禁止）を確認した結果、該当4件の設定キーは実装すると安全要件に違反すると判明。ユーザー確認のうえ実装せずconfig.luaから削除
+- #20: `commit.default_scope`／`editor.wait`は現行アーキテクチャでは効果を持たせられない未実装機能と判明。ユーザー確認のうえconfig.luaから削除
+- 各修正を個別コミット・Issueコメント・クローズ。`lua tests/run.lua`（180 passed / 0 failed）を都度確認
