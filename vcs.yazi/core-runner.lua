@@ -123,9 +123,17 @@ function M.run(spec, timeout_ms)
 
 	local status, wait_err = child:wait()
 	if not status then return nil, wait_err end
-	local result = { status = status, stdout = table.concat(stdout), stderr = table.concat(stderr) }
+	-- Never write into `status` itself: it's the `Status` userdata `Child:wait()`
+	-- returns, which every other call site only ever reads (backend-git.lua,
+	-- backend-svn.lua) — on a timeout, substitute a plain table with the same
+	-- `success`/`code` shape instead of mutating a value we don't own.
+	local result_status = timed_out and { success = false, code = status.code } or status
+	-- `read_line_with` line-terminator handling isn't documented; join with
+	-- "\n" explicitly rather than assume each returned line still carries
+	-- one. A harmless doubled newline if it already did is still parsed
+	-- correctly by core-git.lua's `[^\r\n]+`-based line splitters.
+	local result = { status = result_status, stdout = table.concat(stdout, "\n"), stderr = table.concat(stderr, "\n") }
 	if timed_out then
-		result.status.success = false
 		result.timed_out = true
 		result.stderr = result.stderr ~= "" and result.stderr or "command timed out"
 	end
