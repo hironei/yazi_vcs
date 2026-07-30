@@ -38,4 +38,12 @@
 - #14/#15: `core-runner.lua`が`child:wait()`の返すStatusオブジェクトへ書き込むのをやめ、タイムアウト時は別テーブルへ差し替え。`table.concat`にseparator（`"\n"`）を明示
 - #16〜#19: `docs/requirements.md` §25「安全要件」（Force Delete／Force Push／自動stash／未追跡ファイル自動削除の禁止）を確認した結果、該当4件の設定キーは実装すると安全要件に違反すると判明。ユーザー確認のうえ実装せずconfig.luaから削除
 - #20: `commit.default_scope`／`editor.wait`は現行アーキテクチャでは効果を持たせられない未実装機能と判明。ユーザー確認のうえconfig.luaから削除
-- 各修正を個別コミット・Issueコメント・クローズ。`lua tests/run.lua`（178 passed / 0 failed）を都度確認
+- 各修正を個別コミット・Issueコメント・クローズ。WindowsネイティブLuaでは`lua tests/run.lua`（180 passed / 0 failed、SVN統合含む）を確認。WSLではSVN CLIのパス形式差により統合をスキップし、178 passed / 0 failed
+
+## 2026-07-30 — Windows／WSL／SVN実環境確認
+
+- WindowsネイティブLuaの全テスト（SVN統合を含む）: 180 passed / 0 failed
+- Windows SVN 1.14.5で`external`／`obstructed`／中断checkoutによる`incomplete`を再現し、status XMLと分類結果を確認
+- Windows SVN 1.14.5でupdate／commit／revertを確認
+- WSLの`wslpath -w`とGit Bashの`cygpath -w`で空白を含むパスの変換を確認
+- Git Bashのローカルbare repositoryへのPushを確認（認証付きリモートは未実施）
