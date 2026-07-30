@@ -49,6 +49,27 @@ local function append_line(lines, line)
 	if line then lines[#lines + 1] = line end
 end
 
+--- The default `Child:read_line_with` timeout to poll with when
+--- `runner.timeout_ms` is disabled (0) — the API has no "block forever"
+--- option, so a disabled timeout still needs some finite poll length.
+local DISABLED_POLL_MS = 60000
+
+--- Decide how long the next `read_line_with` call may block, and whether
+--- `deadline` has already been reached. Split out as a pure function so
+--- the disabled-timeout (`deadline == nil`) case can be unit-tested
+--- without a running Yazi `Command`/`Child`.
+---@param deadline integer|nil   ms since epoch the command must finish by, or nil if timeout is disabled
+---@param now_ms integer         current time in ms since epoch
+---@return integer poll_ms       timeout to pass to `read_line_with`
+---@return boolean expired       true if `deadline` has already passed
+function M.next_poll(deadline, now_ms)
+	if not deadline then
+		return DISABLED_POLL_MS, false
+	end
+	local remaining = deadline - now_ms
+	return remaining > 0 and remaining or 0, remaining <= 0
+end
+
 --- Run a non-interactive command with piped output. The timeout uses the
 --- Child line-read timeout API because Command:output() has no timeout API.
 ---@param spec table
@@ -72,8 +93,8 @@ function M.run(spec, timeout_ms)
 	local timed_out = false
 
 	while true do
-		local remaining = deadline and (deadline - os.time() * 1000) or 60000
-		if remaining <= 0 then
+		local remaining, expired = M.next_poll(deadline, os.time() * 1000)
+		if expired then
 			timed_out = true
 			child:start_kill()
 			break
@@ -84,9 +105,15 @@ function M.run(spec, timeout_ms)
 		elseif event == 1 then
 			append_line(stderr, line)
 		elseif event == 3 then
-			timed_out = true
-			child:start_kill()
-			break
+			-- A poll timing out only means the deadline was reached when a
+			-- deadline is actually set (requirements §21.1); with
+			-- `deadline == nil` (timeout disabled) it just means nothing
+			-- was read this poll, so keep waiting.
+			if deadline then
+				timed_out = true
+				child:start_kill()
+				break
+			end
 		elseif event == 2 then
 			break
 		else
