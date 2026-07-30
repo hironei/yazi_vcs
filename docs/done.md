@@ -22,3 +22,10 @@
 - README、ユーザーマニュアル、設計書、TODOをPhase4へ更新
 - 外部設定・環境判定・設定マージテストを追加
 - Lua 5.5テスト: 172 passed / 0 failed
+
+## 2026-07-30 — `/code-review`実施（Phase 3/4対応コミット群）
+
+- 8観点の並列調査を経て、上位10件を報告
+- `timeout_ms=0`が無効化されない、Git push起動失敗時のエラー握りつぶし、Discard再帰判定のスナップショット不整合、core-runner.luaの読み取り専用Status書き込み・改行なし連結の5件はコード直接確認済み
+- `config.lua`で宣言されているが未使用の設定キー5件（`branch.allow_force_delete`／`validate_name`、`switch.auto_stash`／`allow_discard_changes`、`push.allow_force`、`discard.include_untracked`、`commit.default_scope`／`editor.wait`）をgrepで確認
+- Issue #11〜#20として起票
