@@ -12,7 +12,31 @@
 ya pkg add hironei/yazi_vcs:vcs
 ```
 
-パッケージ管理を使わず手動で配置する場合は、リポジトリ内の`vcs.yazi/`ディレクトリを、設定ディレクトリの`plugins/vcs.yazi/`へコピーします。
+### Git cloneで手動インストールする場合
+
+このリポジトリはルート直下に`vcs.yazi/`を含む構成です。そのため、リポジトリ全体を直接`plugins/vcs.yazi/`へcloneすると、プラグインが`plugins/vcs.yazi/vcs.yazi/`に入ってしまいます。いったん一時ディレクトリへcloneし、その中の`vcs.yazi/`だけを設定ディレクトリへコピーしてください。
+
+Linux／macOS／WSL／Git Bashでは、次を実行します。
+
+```bash
+config_dir="${YAZI_CONFIG_HOME:-$HOME/.config/yazi}"
+tmp_dir="$(mktemp -d)"
+git clone --depth 1 https://github.com/hironei/yazi_vcs.git "$tmp_dir/yazi_vcs"
+mkdir -p "$config_dir/plugins/vcs.yazi"
+cp -R "$tmp_dir/yazi_vcs/vcs.yazi/." "$config_dir/plugins/vcs.yazi/"
+rm -rf "$tmp_dir"
+```
+
+WindowsのPowerShellでは、次を実行します。
+
+```powershell
+$configDir = if ($env:YAZI_CONFIG_HOME) { $env:YAZI_CONFIG_HOME } else { Join-Path $env:APPDATA "yazi\config" }
+$tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("yazi_vcs_" + [Guid]::NewGuid().ToString("N"))
+git clone --depth 1 https://github.com/hironei/yazi_vcs.git "$tmpDir\yazi_vcs"
+New-Item -ItemType Directory -Force "$configDir\plugins\vcs.yazi" | Out-Null
+Copy-Item -Path "$tmpDir\yazi_vcs\vcs.yazi\*" -Destination "$configDir\plugins\vcs.yazi" -Recurse -Force
+Remove-Item -LiteralPath $tmpDir -Recurse -Force
+```
 
 ### 2. OSごとの設定ディレクトリ
 
@@ -35,7 +59,7 @@ ya pkg add hironei/yazi_vcs:vcs
     └── vcs.yazi/  # プラグイン本体
 ```
 
-`package.toml`と`plugins/vcs.yazi/`は`ya pkg`が管理します。通常、これらを手で編集する必要はありません。
+`package.toml`と`plugins/vcs.yazi/`は`ya pkg`が管理します。通常、これらを手で編集する必要はありません。Git clone方式では`package.toml`は作成されず、プラグイン本体だけが`plugins/vcs.yazi/`に配置されます。
 
 ### 3. `yazi.toml`にfetcherを追加する
 
