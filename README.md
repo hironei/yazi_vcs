@@ -97,28 +97,28 @@ require("vcs"):setup()
 
 ## キー設定
 
-`<YAZI_CONFIG_HOME>/keymap.toml`に、使いたいキー割り当てを追加します。以下は`Ctrl-g`を先頭にした例です。既存のキーと衝突する場合は、`on`のキー列を変更してください。
+`<YAZI_CONFIG_HOME>/keymap.toml`に、使いたいキー割り当てを追加します。以下は`g`→`v`をVCS用プレフィックスにした例です。既存のキーと衝突する場合は、`on`のキー列を変更してください。
 
 ```toml
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "d" ]
+on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "D" ]
+on = [ "g", "v", "D" ]
 run = "plugin vcs -- diff --external"
 desc = "External VCS diff"
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "l" ]
+on = [ "g", "v", "l" ]
 run = "plugin vcs -- log"
 desc = "VCS log"
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "L" ]
+on = [ "g", "v", "L" ]
 run = "plugin vcs -- log --external"
 desc = "External VCS log"
 ```
 
-既存の`update`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`v`はYaziのvisual modeと衝突するため、例では`<C-g>`を使います。
+既存の`update`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`g`→`v`の後に操作キーを続けて入力します。
 
 ## 外部Diff／Log設定
 

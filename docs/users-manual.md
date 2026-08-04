@@ -139,61 +139,61 @@ require("vcs"):setup({
 
 ## キー割り当て
 
-キー割り当ては`<YAZI_CONFIG_HOME>/keymap.toml`へ追加します。以下は`Ctrl-g`をプレフィックスにする一例です。`v`はYaziのvisual modeと衝突するため使用していません。
+キー割り当ては`<YAZI_CONFIG_HOME>/keymap.toml`へ追加します。以下は`g`→`v`をVCS用プレフィックスにする一例です。`g`→`v`の後に操作キーを続けて入力します。
 
 ```toml
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "r" ]
+on = [ "g", "v", "r" ]
 run = "plugin vcs -- status"
 desc = "Refresh VCS status"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "u" ]
+on = [ "g", "v", "u" ]
 run = "plugin vcs -- update"
 desc = "VCS update"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "c" ]
+on = [ "g", "v", "c" ]
 run = "plugin vcs -- commit"
 desc = "VCS commit"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "x" ]
+on = [ "g", "v", "x" ]
 run = "plugin vcs -- discard"
 desc = "Discard VCS changes"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "d" ]
+on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "D" ]
+on = [ "g", "v", "D" ]
 run = "plugin vcs -- diff --external"
 desc = "External VCS diff"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "l" ]
+on = [ "g", "v", "l" ]
 run = "plugin vcs -- log"
 desc = "VCS log"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "L" ]
+on = [ "g", "v", "L" ]
 run = "plugin vcs -- log --external"
 desc = "External VCS log"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "p" ]
+on = [ "g", "v", "p" ]
 run = "plugin vcs -- push"
 desc = "Git push"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "b" ]
+on = [ "g", "v", "b" ]
 run = "plugin vcs -- branch"
 desc = "Git branch"
 
 [[mgr.prepend_keymap]]
-on = [ "<C-g>", "s" ]
+on = [ "g", "v", "s" ]
 run = "plugin vcs -- switch"
 desc = "Git switch"
 ```
@@ -237,6 +237,8 @@ Discardでは未追跡ファイル・ignoredファイルを対象外とします
 require("vcs"):setup({
   path = { external_style = "auto" }, -- "auto" | "native" | "windows"
   diff = {
+    -- Git側でBeyond Compareをdiff.tool=bcとして設定しておくと、
+    -- Gitがbcomp.exeを起動して旧版と作業ツリーを比較します。
     git_external = {
       command = "git",
       args = { "difftool", "--no-prompt", "--", "{targets}" },
@@ -245,12 +247,24 @@ require("vcs"):setup({
     },
     svn_external = {
       command = "svn",
-      args = { "diff", "--diff-cmd", "svn-difft-wrapper", "--", "{targets}" },
+      args = {
+        "diff",
+        "--diff-cmd",
+        "C:/Program Files/Beyond Compare 5/bcsvn.bat",
+        "--",
+        "{targets}",
+      },
       interactive = true,
+      path_style = "windows",
     },
   },
   log = {
-    git_external = { command = "lazygit", args = {}, interactive = true },
+    git_external = {
+      command = "TortoiseGitProc.exe",
+      args = { "/command:log", "/path:{file}" },
+      interactive = false,
+      path_style = "windows",
+    },
     svn_external = {
       command = "TortoiseProc.exe",
       args = { "/command:log", "/path:{file}" },
@@ -260,6 +274,30 @@ require("vcs"):setup({
   },
 })
 ```
+
+Gitの外部DiffをBeyond Compareで開く場合は、先にGitへ`bcomp.exe`を登録します。Windowsの標準的なインストール先は環境に合わせて変更してください。
+
+```bash
+git config --global diff.tool bc
+git config --global difftool.bc.path "C:/Program Files/Beyond Compare 5/bcomp.exe"
+git config --global difftool.prompt false
+```
+
+上の`git_external`は`git difftool`を呼び出すため、GitがBeyond Compareを使ってVCSの旧版と作業ツリーを比較します。`bcomp.exe`をプラグインから直接起動する設定は、選択中のパスを開くだけでGitの比較対象を組み立てないため、VCS Diffにはこの`git difftool`経由の設定を使用してください。
+
+SVNの外部Diffでは、SVNが渡す引数をBeyond Compare用に変換する`bcsvn.bat`が必要です。Beyond Compareのインストール先（上の例では`C:/Program Files/Beyond Compare 5/`）に、次の内容で`bcsvn.bat`を作成してください。
+
+```bat
+call "%~dp0\bcomp.exe" "%6" /title1=%3 "%7" /title2=%5
+IF %errorlevel%==0 goto ZERO
+EXIT /B 1
+:ZERO
+EXIT /B 0
+```
+
+SVNの設定例はこのラッパーを`--diff-cmd`で指定しています。インストール先を変更した場合は、`svn_external.args`のパスも同じ場所へ変更してください。
+
+Gitの外部Logは`TortoiseGitProc.exe`のログダイアログを起動します。`TortoiseGitProc.exe`がPATHにない場合は、`command`を実際のインストール先（例: `C:/Program Files/TortoiseGit/bin/TortoiseGitProc.exe`）へ変更してください。
 
 外部設定の項目は次のとおりです。
 
