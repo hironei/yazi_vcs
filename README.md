@@ -10,7 +10,36 @@ Yaziのファイル一覧へGit／Subversionの状態を表示し、共通操作
 
 ## インストール
 
-プラグインを配置して`ya pkg add`で登録し、fetcherを必ず設定します。fetcher登録を省略すると状態表示は動作しません。
+このリポジトリは、ルート直下の`vcs.yazi/`がYaziプラグイン本体です。Yaziのパッケージ管理を使う場合は、リポジトリ全体ではなくこのサブディレクトリを指定します。
+
+```bash
+ya pkg add hironei/yazi_vcs:vcs
+```
+
+これにより、通常は次の場所へ`vcs.yazi`が配置され、`package.toml`も更新されます。`package.toml`は手で編集せず、以後の更新も`ya pkg`で行ってください。
+
+| OS | Yaziの設定ディレクトリ |
+| --- | --- |
+| Linux／macOS／WSL | `~/.config/yazi/` |
+| Windows | `%AppData%\yazi\config\` |
+
+`YAZI_CONFIG_HOME`を設定している場合は、そのディレクトリが代わりに使われます。以下ではこの場所を`<YAZI_CONFIG_HOME>`と表記します。パッケージ管理を使わず手動で配置する場合は、リポジトリ内の`vcs.yazi/`ディレクトリを`<YAZI_CONFIG_HOME>/plugins/vcs.yazi/`へコピーしてください。
+
+インストール後は、次の3ファイルへ設定を追加します。既存の内容は削除せず、各ファイルの既存の設定に追記してください。
+
+```text
+<YAZI_CONFIG_HOME>/
+├── package.toml  # ya pkg addが更新する管理ファイル
+├── yazi.toml    # status表示用fetcher
+├── keymap.toml  # キー割り当て（必要な場合）
+├── init.lua     # プラグイン初期化
+└── plugins/
+    └── vcs.yazi/  # ya pkg addが配置するプラグイン本体
+```
+
+### 1. `yazi.toml`へfetcherを追加する
+
+`<YAZI_CONFIG_HOME>/yazi.toml`に、次の2ブロックを追加します。これを省略すると、Git／SVNの状態表示は動作しません。
 
 ```toml
 [[plugin.prepend_fetchers]]
@@ -26,9 +55,23 @@ run = "vcs"
 group = "vcs"
 ```
 
-`init.lua`では`require("vcs"):setup()`を呼びます。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。
+### 2. `init.lua`でプラグインを初期化する
+
+`<YAZI_CONFIG_HOME>/init.lua`に、次の1行を追加します。既存の`init.lua`がある場合は、既存のコードを残したまま追記してください。
+
+```lua
+require("vcs"):setup()
+```
+
+これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
+
+### 3. Yaziを再起動する
+
+設定ファイルを保存したらYaziをいったん終了して再起動します。ファイル一覧でGit／SVN管理下のファイルに状態記号が表示されれば、status表示のセットアップは完了です。
 
 ## キー設定
+
+`<YAZI_CONFIG_HOME>/keymap.toml`に、使いたいキー割り当てを追加します。以下は`Ctrl-g`を先頭にした例です。既存のキーと衝突する場合は、`on`のキー列を変更してください。
 
 ```toml
 [[mgr.prepend_keymap]]
@@ -53,7 +96,7 @@ desc = "External VCS log"
 
 ## 外部Diff／Log設定
 
-外部設定はコマンド名と引数配列を分離します。使用できるプレースホルダーは`{root}`、`{file}`、`{targets}`、`{revision}`です。`{targets}`だけは1つの引数として記述し、対象ごとに安全に展開されます。
+外部設定は`<YAZI_CONFIG_HOME>/init.lua`の`require("vcs"):setup({ ... })`へ追加します。すでに`require("vcs"):setup()`を書いている場合は、次の例で置き換えてください（`require`を2回書く必要はありません）。コマンド名と引数配列を分離し、使用できるプレースホルダーは`{root}`、`{file}`、`{targets}`、`{revision}`です。`{targets}`だけは1つの引数として記述し、対象ごとに安全に展開されます。
 
 ```lua
 require("vcs"):setup({
