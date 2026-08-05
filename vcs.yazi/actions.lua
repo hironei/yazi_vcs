@@ -97,9 +97,10 @@ local function with_lock(root, operation, fn, read_only)
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
 	end
-	local ok, result = xpcall(fn, debug.traceback)
+	-- Keep the cleanup explicit. Wrapping the async operation in xpcall can
+	-- leave the task pending on Windows before the operation body starts.
+	local result = fn()
 	State.end_action(root)
-	if not ok then Notify.error("%s failed: %s", operation, result) end
 	return result
 end
 
@@ -335,14 +336,17 @@ function M.discard()
 	local _, _, cwd = current_context()
 	local kind, root = context_root(cwd, cfg)
 	if not kind then return end
+	trace("discard:start kind=" .. kind .. " root=" .. tostring(root))
 	with_lock(root, "Discard", function()
 		local paths, _, info, absolute = selected_targets(root)
 		if not paths then return end
+		trace("discard:targets=" .. table.concat(paths, " | "))
 		local abs_by_rel = {}
 		for i, path in ipairs(paths) do abs_by_rel[path] = absolute[i] end
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
 		local kept, excluded = Targets.exclude_untracked(paths, statuses)
+		trace("discard:kept=" .. table.concat(kept, " | ") .. " excluded=" .. table.concat(excluded, " | "))
 		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
 		local recursive = false
@@ -353,11 +357,17 @@ function M.discard()
 		if recursive then
 			local value, event = ya.input({ title = 'Type "revert" to confirm recursive discard:', pos = { "center", w = 50 } })
 			if event ~= 1 or value ~= (cfg.discard.recursive_confirm_text or "revert") then return Notify.info("Discard cancelled.") end
-		elseif cfg.discard.confirm and not ya.confirm({ title = "VCS Discard changes", body = body .. "\n\nThese changes cannot be restored." }) then
-			return
+		elseif cfg.discard.confirm then
+			local value, event = ya.input({
+				title = 'Type "discard" to confirm:\n' .. body,
+				pos = { "center", w = 60 },
+			})
+			if event ~= 1 or value ~= "discard" then return Notify.info("Discard cancelled.") end
 		end
 		local fallback = kind == "git" and Commands.git_discard(kept) or Commands.svn_discard(kept, recursive)
+		trace("discard:run command=" .. kind .. " args=" .. table.concat(fallback, " | "))
 		local output, err = run(root, kind, fallback, cfg)
+		trace("discard:run-result=" .. tostring(output and output.status and output.status.success) .. " error=" .. tostring(err))
 		local operation = kind:gsub("^%l", string.upper) .. " discard"
 		if not output or not output.status.success then return failure(operation, output, err) end
 		finish(root, operation, output)
