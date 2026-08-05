@@ -11,6 +11,12 @@ local Commands = require(".core-commands")
 
 local M = {}
 
+local function trace(stage)
+	if os.getenv("VCS_YAZI_TRACE") == "1" and type(ya.err) == "function" then
+		ya.err("vcs trace: " .. stage)
+	end
+end
+
 local current_context = ya.sync(function()
 	local tab, selected, info = cx.active, {}, {}
 	for _, url in pairs(tab.selected) do
@@ -208,15 +214,24 @@ local function run_external(root, operation, spec, absolute, cfg)
 	local context = external_context(root, absolute, cfg, spec)
 	local args, expand_err = External.expand_args(spec.args, context)
 	if not args then return Notify.error("%s configuration is invalid: %s", operation, expand_err) end
+	trace("external: " .. operation .. " command=" .. tostring(spec.command) .. " cwd=" .. tostring(root) .. " args=" .. table.concat(args, " | "))
 	local command = { command = spec.command, args = args, cwd = root }
 	if spec.interactive == false then
 		local launched, launch_err = Runner.launch(command)
+		trace("external:orphan-launch=" .. tostring(launched) .. " error=" .. tostring(launch_err))
 		if not launched then return failure(operation, nil, launch_err) end
 		return Notify.info("%s launched.", operation)
 	end
 	local status, err = Runner.interactive(command)
 	if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
 	Notify.info("%s completed.", operation)
+end
+
+local function has_diff(root, kind, paths)
+	local args = kind == "git" and Commands.git_diff(paths) or Commands.svn_diff(paths)
+	local output, err = Runner.output({ command = kind, args = args, cwd = root })
+	if not output or not output.status.success then return nil, output, err end
+	return Runner.summary(output.stdout, 1) ~= "", output, nil
 end
 
 function M.update()
@@ -276,6 +291,11 @@ local function view_operation(operation, config_section, kind_builder, external)
 		if not paths then return end
 		local section = cfg[config_section] or {}
 		if external then
+			if config_section == "diff" then
+				local changed, output, err = has_diff(root, kind, paths)
+				if changed == nil then return failure(operation .. " check", output, err) end
+				if not changed then return Notify.info("%s: no differences for selected targets.", operation) end
+			end
 			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg)
 		end
 		local configured = section[kind .. "_cli"]

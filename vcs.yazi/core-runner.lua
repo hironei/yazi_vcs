@@ -180,21 +180,17 @@ function M.interactive(spec)
 	return status, err
 end
 
---- Launch a non-interactive GUI process without occupying Yazi or waiting for
---- its window to close. stdout/stderr are disconnected so GUI tools cannot
---- block on inherited terminal streams.
+--- Launch a non-interactive GUI process through Yazi's orphan shell action.
+--- A direct Command:spawn() is still managed by Yazi and can be terminated
+--- when the functional-plugin task releases it before a GUI window appears.
 ---@param spec table
 ---@return boolean|nil launched
 ---@return any? err
 function M.launch(spec)
-	local command = Command(spec.command)
-		:arg(spec.args or {})
-		:stdin(Command.NULL)
-		:stdout(Command.NULL)
-		:stderr(Command.NULL)
-	if spec.cwd then command:cwd(spec.cwd) end
-	local child, err = command:spawn()
-	if not child then return nil, err end
+	local argv = { ya.quote(spec.command) }
+	for _, arg in ipairs(spec.args or {}) do argv[#argv + 1] = ya.quote(arg) end
+	local command = table.concat(argv, " ")
+	ya.emit("shell", { command, orphan = true })
 	return true
 end
 

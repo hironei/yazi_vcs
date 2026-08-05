@@ -227,7 +227,7 @@ Discardでは未追跡ファイル・ignoredファイルを対象外とします
 
 | Yaziから呼び出すコマンド | 設定キー | 内容 |
 | --- | --- | --- |
-| `plugin vcs -- diff --external` | `diff.git_external`／`diff.svn_external` | 外部Diffツールを起動 |
+| `plugin vcs -- diff --external` | `diff.git_external`／`diff.svn_external` | 差分がある場合に外部Diffツールを起動。差分が無ければ通知 |
 | `plugin vcs -- log --external` | `log.git_external`／`log.svn_external` | 外部Logビューアを起動 |
 
 設定例です。`require("vcs"):setup()`をすでに書いている場合は、二重に書かず、この形へ置き換えてください。
