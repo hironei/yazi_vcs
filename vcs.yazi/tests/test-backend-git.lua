@@ -22,6 +22,18 @@ return function(t)
 		t.eq(with_paths[#with_paths], "b.txt", "status_args includes the second path")
 	end
 
+	do
+		local spec = git.status_spec("C:/repo", { "a.txt" })
+		t.deep_eq(spec, {
+			command = "git",
+			args = git.status_args({ "a.txt" }),
+			cwd = "C:/repo",
+		}, "status_spec delegates execution to the shared runner")
+		local changed, excluded = git.parse_status_output("? new.txt\0")
+		t.deep_eq(changed, { ["new.txt"] = "untracked" }, "parse_status_output parses runner stdout")
+		t.deep_eq(excluded, {}, "parse_status_output preserves excluded paths")
+	end
+
 	-- Ordinary changed entries + untracked + ignored, from a real
 	-- `git --no-optional-locks -c core.quotePath= status --porcelain=v2
 	-- -z --untracked-files=all --ignored=matching` capture.

@@ -29,6 +29,20 @@ return function(t)
 		)
 	end
 
+	do
+		local spec = svn.status_spec("C:/wc", { "a.txt" }, { ignore_externals = false })
+		t.deep_eq(spec, {
+			command = "svn",
+			args = svn.status_args({ "a.txt" }, false),
+			cwd = "C:/wc",
+		}, "status_spec delegates execution to the shared runner")
+		local changed, excluded = svn.parse_status_output(
+			'<status><target path="a.txt"><entry path="a.txt"><wc-status item="modified" props="none"></wc-status></entry></target></status>'
+		)
+		t.deep_eq(changed, { ["a.txt"] = "modified" }, "parse_status_output parses runner stdout")
+		t.deep_eq(excluded, {}, "parse_status_output returns the common empty excluded list")
+	end
+
 	-- modified / unversioned / ignored / deleted / property-modified
 	-- (item="normal" with props="modified" on the WC root, filtered out
 	-- since its path is ".").

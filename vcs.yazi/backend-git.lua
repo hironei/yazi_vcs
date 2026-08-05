@@ -2,10 +2,11 @@
 -- Git backend: command construction and `status --porcelain=v2 -z` output
 -- parsing (requirements §8.4, §8.4.1).
 --
--- `status_args` and `parse_status` are pure (no Yazi API calls) and are
--- exercised directly by the unit tests, plus against a real `git` binary
--- via `io.popen` from the plain-Lua integration test. `M.fetch` is the
--- Yazi-facing adapter using `Command`, exercised only inside Yazi.
+-- `status_args`, `status_spec`, and `parse_status` are pure (no Yazi API
+-- calls) and are exercised directly by the unit tests, plus against a real
+-- `git` binary via `io.popen` from the plain-Lua integration test. The
+-- Yazi-facing caller executes `status_spec` through the shared timeout-aware
+-- runner.
 local M = {}
 
 M.capabilities = { push = true, branch = true, switch = true }
@@ -151,24 +152,16 @@ function M.parse_status(stdout)
 	return changed, excluded
 end
 
---- Run `git status` for `paths` against repository `root` and parse the
---- result.
+--- Build the `git status` command for `paths` against repository `root`.
 ---@param root string          absolute repository root; used as the command's cwd
 ---@param paths string[]|nil   root-relative paths to limit the query to
----@param options table|nil    backend options (currently unused)
----@return table<string,string>? changed
----@return string[]? excluded
----@return string? err
-function M.fetch(root, paths, _options)
-	local output, err = Command("git"):cwd(root):arg(M.status_args(paths)):output()
-	if not output then
-		return nil, nil, tostring(err)
-	end
-	if not output.status.success then
-		return nil, nil, output.stderr
-	end
-	local changed, excluded = M.parse_status(output.stdout)
-	return changed, excluded, nil
+---@return table { command:string, args:string[], cwd:string }
+function M.status_spec(root, paths)
+	return { command = "git", args = M.status_args(paths), cwd = root }
+end
+
+function M.parse_status_output(stdout)
+	return M.parse_status(stdout)
 end
 
 return M

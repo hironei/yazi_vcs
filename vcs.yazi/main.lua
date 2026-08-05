@@ -7,6 +7,7 @@ local Status = require(".core-status")
 local State = require(".core-state")
 local Notify = require(".core-notify")
 local Path = require(".core-path")
+local Runner = require(".core-runner")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
 
@@ -47,8 +48,16 @@ function M:fetch(job)
 			queried[#queried + 1] = rel
 		end
 	end
-	local changed, excluded, err = BACKENDS[kind].fetch(root_str, queried, { ignore_externals = cfg.status.ignore_externals })
-	if err then return true, Err("Cannot run `%s status`: %s", kind, err) end
+	local backend = BACKENDS[kind]
+	local output, err = Runner.run(
+		backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }),
+		cfg.runner.timeout_ms
+	)
+	if not output then return true, Err("Cannot run `%s status`: %s", kind, err) end
+	if not output.status.success then
+		return true, Err("Cannot run `%s status`: %s", kind, Runner.error_text(output, err))
+	end
+	local changed, excluded = backend.parse_status_output(output.stdout)
 	if cfg.status.aggregate_directories then Status.merge(changed, Status.bubble_up(changed)) end
 	local cwd_rel = Path.strip_prefix(root_str, cwd_str) or ""
 	Status.merge(changed, Status.propagate_down(excluded, cwd_rel))

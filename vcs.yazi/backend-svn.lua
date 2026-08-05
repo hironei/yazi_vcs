@@ -2,11 +2,11 @@
 -- SVN backend: command construction and `status --xml` output parsing
 -- (requirements §8.5).
 --
--- `status_args` and `parse_status_xml` are pure (no Yazi API calls) and
--- are exercised directly by the unit tests, plus against a real `svn`
--- binary via `io.popen` from the plain-Lua integration test. `M.fetch`
--- is the Yazi-facing adapter using `Command`, exercised only inside
--- Yazi.
+-- `status_args`, `status_spec`, and `parse_status_xml` are pure (no Yazi API
+-- calls) and are exercised directly by the unit tests, plus against a real
+-- `svn` binary via `io.popen` from the plain-Lua integration test. The
+-- Yazi-facing caller executes `status_spec` through the shared timeout-aware
+-- runner.
 --
 -- The XML schema assumed here is grounded in `svn status --xml` output
 -- captured against a real SVN 1.14.5 working copy (not guessed): plain
@@ -154,24 +154,18 @@ function M.parse_status_xml(xml)
 	return changed
 end
 
---- Run `svn status` for `paths` against working-copy root `root` and
---- parse the result.
+--- Build the `svn status` command for `paths` against working-copy root `root`.
 ---@param root string          absolute working-copy root; used as the command's cwd
 ---@param paths string[]|nil   root-relative paths to limit the query to
 ---@param options table|nil    backend options
----@return table<string,string>? changed
----@return string[]? excluded  always empty; kept for the common backend contract
----@return string? err
-function M.fetch(root, paths, options)
+---@return table { command:string, args:string[], cwd:string }
+function M.status_spec(root, paths, options)
 	local ignore_externals = not options or options.ignore_externals ~= false
-	local output, err = Command("svn"):cwd(root):arg(M.status_args(paths, ignore_externals)):output()
-	if not output then
-		return nil, nil, tostring(err)
-	end
-	if not output.status.success then
-		return nil, nil, output.stderr
-	end
-	return M.parse_status_xml(output.stdout), {}, nil
+	return { command = "svn", args = M.status_args(paths, ignore_externals), cwd = root }
+end
+
+function M.parse_status_output(stdout)
+	return M.parse_status_xml(stdout), {}
 end
 
 return M

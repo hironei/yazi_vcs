@@ -54,6 +54,12 @@ end
 --- option, so a disabled timeout still needs some finite poll length.
 local DISABLED_POLL_MS = 60000
 
+local function now_ms()
+	-- `ya.time()` includes milliseconds; `os.time()` is only second-resolution
+	-- and makes the runner's deadline unnecessarily coarse in Yazi.
+	return math.floor(ya.time() * 1000)
+end
+
 --- Decide how long the next `read_line_with` call may block, and whether
 --- `deadline` has already been reached. Split out as a pure function so
 --- the disabled-timeout (`deadline == nil`) case can be unit-tested
@@ -89,11 +95,11 @@ function M.run(spec, timeout_ms)
 
 	local stdout, stderr = {}, {}
 	local timeout = tonumber(timeout_ms or 0) or 0
-	local deadline = timeout > 0 and (os.time() * 1000 + timeout) or nil
+	local deadline = timeout > 0 and (now_ms() + timeout) or nil
 	local timed_out = false
 
 	while true do
-		local remaining, expired = M.next_poll(deadline, os.time() * 1000)
+		local remaining, expired = M.next_poll(deadline, now_ms())
 		if expired then
 			timed_out = true
 			child:start_kill()
