@@ -1,6 +1,6 @@
 # vcs.yazi ユーザーガイド
 
-`vcs.yazi`は、Yaziのファイル一覧へGit／Subversion（SVN）の状態を表示し、共通操作、Git操作、外部Diff／Log連携を提供するプラグインです。対応Yaziは26.5.6以降です。
+`vcs.yazi`は、Yaziのファイル一覧へGit／Subversion（SVN）の状態とリポジトリ位置を表示し、共通操作、Git操作、外部Diff／Log連携を提供するプラグインです。対応Yaziは26.5.6以降です。
 
 ## インストールと設定場所
 
@@ -95,6 +95,8 @@ require("vcs"):setup()
 | `status.order` | `500` | 状態記号を表示する列の順序 |
 | `status.aggregate_directories` | `true` | 配下の状態をディレクトリへ集約 |
 | `status.ignore_externals` | `true` | SVN externalsを状態取得から除外 |
+| `info.enabled` | `true` | status bar右側のGit branch／SVN位置表示 |
+| `info.order` | `600` | リポジトリ位置表示の順序 |
 | `editor.command` | `"nvim"` | Commitメッセージ編集に使うコマンド |
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
@@ -135,7 +137,7 @@ require("vcs"):setup({
 
 ### 5. Yaziを再起動する
 
-設定ファイルを保存したらYaziをいったん終了して再起動します。GitリポジトリまたはSVN working copy内で、ファイル名の前に状態記号が表示されればstatus表示のセットアップは完了です。
+設定ファイルを保存したらYaziをいったん終了して再起動します。GitリポジトリまたはSVN working copy内で、ファイル名の前に状態記号とstatus barのリポジトリ位置が表示されればstatus表示のセットアップは完了です。
 
 ## キー割り当て
 

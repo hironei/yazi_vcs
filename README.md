@@ -1,6 +1,6 @@
 # yazi_vcs
 
-Yaziのファイル一覧へGit／Subversionの状態を表示し、共通操作、Git操作、外部Diff／Log連携を提供する`vcs.yazi`プラグインです。
+Yaziのファイル一覧へGit／Subversionの状態とリポジトリ位置を表示し、共通操作、Git操作、外部Diff／Log連携を提供する`vcs.yazi`プラグインです。
 
 ## 対応環境
 
@@ -89,11 +89,11 @@ group = "vcs"
 require("vcs"):setup()
 ```
 
-これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
+これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。status bar右側には、Gitなら`(branch-name)`、SVNなら`(svn: base_url/trunk)`のように現在位置を表示します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
 
 ### 3. Yaziを再起動する
 
-設定ファイルを保存したらYaziをいったん終了して再起動します。ファイル一覧でGit／SVN管理下のファイルに状態記号が表示されれば、status表示のセットアップは完了です。
+設定ファイルを保存したらYaziをいったん終了して再起動します。ファイル一覧でGit／SVN管理下のファイルに状態記号とstatus barのリポジトリ位置が表示されれば、status表示のセットアップは完了です。
 
 ## キー設定
 

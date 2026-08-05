@@ -11,11 +11,13 @@ M.get_config = ya.sync(function(state)
 	return state.config
 end)
 
-M.remember = ya.sync(function(state, cwd, root, changed)
+M.remember = ya.sync(function(state, cwd, root, changed, vcs_info)
 	state.dirs = state.dirs or {}
 	state.roots = state.roots or {}
+	state.vcs_info = state.vcs_info or {}
 	state.dirs[cwd] = root
 	state.roots[root] = state.roots[root] or {}
+	state.vcs_info[root] = vcs_info
 	status.merge(state.roots[root], changed)
 	ui.render()
 end)
@@ -28,6 +30,7 @@ M.forget = ya.sync(function(state, cwd)
 	local root = state.dirs[cwd]
 	state.dirs[cwd] = nil
 	state.roots = state.roots or {}
+	state.vcs_info = state.vcs_info or {}
 	for _, remembered_root in pairs(state.dirs) do
 		if remembered_root == root then
 			ui.render()
@@ -35,12 +38,15 @@ M.forget = ya.sync(function(state, cwd)
 		end
 	end
 	state.roots[root] = nil
+	state.vcs_info[root] = nil
 	ui.render()
 end)
 
 M.clear_root = ya.sync(function(state, root)
 	state.roots = state.roots or {}
+	state.vcs_info = state.vcs_info or {}
 	state.roots[root] = nil
+	state.vcs_info[root] = nil
 	ui.render()
 end)
 
@@ -71,6 +77,11 @@ M.status_of = ya.sync(function(state, root, relpath)
 	state.roots = state.roots or {}
 	local bucket = state.roots[root]
 	return bucket and bucket[relpath] or nil
+end)
+
+M.info_of = ya.sync(function(state, root)
+	state.vcs_info = state.vcs_info or {}
+	return state.vcs_info[root]
 end)
 
 return M

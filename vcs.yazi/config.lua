@@ -9,6 +9,7 @@ M.defaults = {
 		ignored = "I", clean = " ",
 	},
 	status = { order = 500, aggregate_directories = true, ignore_externals = true },
+	info = { enabled = true, order = 600 },
 	-- The editor always runs under ui.hide() and is always waited for
 	-- (requirements §11.1/§11.4) — a non-blocking GUI editor would need a
 	-- different commit flow entirely, so there is no `wait` toggle here.

@@ -1,5 +1,12 @@
 # 完了記録
 
+## 2026-08-05 — status barのVCS位置表示
+
+- status bar右側へGitの現在branch（`(branch-name)`）を表示
+- SVNは`repos-root-url`からの相対位置（`(svn: base_url/trunk)`など）を表示
+- 描画中のCLI実行を避け、fetcherで取得したroot別stateを参照
+- Git／SVN URL解析と表示整形の単体テストを追加
+
 ## 2026-07-29 — vcs.yazi Phase 3（Git拡張）実装
 
 - `core-git.lua`: Push／Branch／Switchの引数構築、Branch一覧・remote解析、Branch名入力検証

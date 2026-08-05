@@ -1,6 +1,6 @@
 # vcs.yazi
 
-Git／SVNの状態表示、Phase 2の共通操作、Phase 3のGit操作、Phase 4の外部Diff／Log連携を提供するYaziプラグインです。
+Git／SVNの状態とリポジトリ位置表示、Phase 2の共通操作、Phase 3のGit操作、Phase 4の外部Diff／Log連携を提供するYaziプラグインです。status bar右側にGitの現在branch、またはSVNの`base_url/trunk`のようなリポジトリ相対位置を表示します。
 
 Phase 4の操作:
 
