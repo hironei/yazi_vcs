@@ -35,7 +35,7 @@ function M.svn_commit(message_file, paths)
 end
 
 function M.git_diff(paths)
-	return append_targets({ "diff" }, paths)
+	return append_targets({ "--no-pager", "diff" }, paths)
 end
 
 function M.svn_diff(paths)
@@ -43,7 +43,7 @@ function M.svn_diff(paths)
 end
 
 function M.git_log(paths)
-	local args = { "log", "--decorate", "--oneline", "--graph" }
+	local args = { "--no-pager", "log", "--decorate", "--oneline", "--graph" }
 	if paths and #paths > 0 then
 		return append_targets(args, paths)
 	end

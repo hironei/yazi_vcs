@@ -217,7 +217,7 @@ desc = "Git switch"
 
 Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みの内容をCommitします。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
 
-Discardでは未追跡ファイル・ignoredファイルを対象外とします。ディレクトリを再帰的に破棄する場合は、既定で`revert`という文字の入力が必要です。
+Discardでは未追跡ファイル・ignoredファイルを対象外とします。通常のDiscardは`discard`、ディレクトリを再帰的に破棄する場合は、既定で`revert`という文字の入力が必要です。
 
 `log.git_cli`と`log.svn_cli`は、`{targets}`プレースホルダーを対象パスへ展開して実行します。対象を指定しない場合の表示範囲は、設定したCLIコマンドの引数に従います。
 
@@ -227,7 +227,7 @@ Discardでは未追跡ファイル・ignoredファイルを対象外とします
 
 | Yaziから呼び出すコマンド | 設定キー | 内容 |
 | --- | --- | --- |
-| `plugin vcs -- diff --external` | `diff.git_external`／`diff.svn_external` | 外部Diffツールを起動 |
+| `plugin vcs -- diff --external` | `diff.git_external`／`diff.svn_external` | 差分がある場合に外部Diffツールを起動。差分が無ければ通知 |
 | `plugin vcs -- log --external` | `log.git_external`／`log.svn_external` | 外部Logビューアを起動 |
 
 設定例です。`require("vcs"):setup()`をすでに書いている場合は、二重に書かず、この形へ置き換えてください。
@@ -355,7 +355,7 @@ SVN working copyでは、次の操作は利用できません。Gitリポジト�
 - コマンドは引数配列で実行し、shell文字列連結を行いません。
 - Git Force Push、Force Delete、auto-stash、強制Switchは実行しません。
 - 未追跡ファイルを自動削除しません。
-- Commit、Discard、再帰的なDiscardには確認を表示します。
+- Commitには確認を表示し、Discardは`discard`、再帰的なDiscardは`revert`の入力で確認します。
 - Git Pushは認証入力の可能性があるため、通常のタイムアウトを適用せず、Yaziを隠して端末を引き継ぎます。
 - Git／SVNのCLI、エディタ、pager、外部Diff／Logツールは別途インストールしてPATHを通してください。
 - 実Yazi UI、認証入力、Windows GUI、WSL／Git Bashの実環境、SVN実CLIは別途確認が必要です。

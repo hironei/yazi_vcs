@@ -20,6 +20,19 @@ function M.command_spec(spec)
 	}
 end
 
+--- Run a command and collect its complete output through Yazi's built-in
+--- `Command:output()` path. This is the path used by the official git.yazi
+--- fetcher and is suitable for bounded, read-only output such as status,
+--- diff, and log.
+---@param spec table { command:string, args:string[], cwd:string? }
+---@return table|nil output { status={success,code}, stdout:string, stderr:string }
+---@return any? err
+function M.output(spec)
+	local command = Command(spec.command):arg(spec.args or {})
+	if spec.cwd then command:cwd(spec.cwd) end
+	return command:output()
+end
+
 ---@param output table|nil
 ---@param err any
 ---@return string
@@ -53,6 +66,12 @@ end
 --- `runner.timeout_ms` is disabled (0) — the API has no "block forever"
 --- option, so a disabled timeout still needs some finite poll length.
 local DISABLED_POLL_MS = 60000
+
+local function now_ms()
+	-- `ya.time()` includes milliseconds; `os.time()` is only second-resolution
+	-- and makes the runner's deadline unnecessarily coarse in Yazi.
+	return math.floor(ya.time() * 1000)
+end
 
 --- Decide how long the next `read_line_with` call may block, and whether
 --- `deadline` has already been reached. Split out as a pure function so
@@ -89,11 +108,11 @@ function M.run(spec, timeout_ms)
 
 	local stdout, stderr = {}, {}
 	local timeout = tonumber(timeout_ms or 0) or 0
-	local deadline = timeout > 0 and (os.time() * 1000 + timeout) or nil
+	local deadline = timeout > 0 and (now_ms() + timeout) or nil
 	local timed_out = false
 
 	while true do
-		local remaining, expired = M.next_poll(deadline, os.time() * 1000)
+		local remaining, expired = M.next_poll(deadline, now_ms())
 		if expired then
 			timed_out = true
 			child:start_kill()
@@ -147,36 +166,31 @@ end
 ---@return any? err
 function M.interactive(spec)
 	local permit = ui.hide()
-	local ok, status, err = xpcall(function()
-		local command = Command(spec.command)
-			:arg(spec.args or {})
-			:stdin(Command.INHERIT)
-			:stdout(Command.INHERIT)
-			:stderr(Command.INHERIT)
-		if spec.cwd then command:cwd(spec.cwd) end
-		local result, command_err = command:status()
-		return result, command_err
-	end, debug.traceback)
+	-- `Command:status()` reports failures as its second return value. Avoid an
+	-- xpcall wrapper here: on Windows it can leave Yazi's async task pending
+	-- immediately after ui.hide(), before the inherited-terminal command runs.
+	local command = Command(spec.command)
+		:arg(spec.args or {})
+		:stdin(Command.INHERIT)
+		:stdout(Command.INHERIT)
+		:stderr(Command.INHERIT)
+	if spec.cwd then command:cwd(spec.cwd) end
+	local status, err = command:status()
 	permit:drop()
-	if not ok then return nil, status end
 	return status, err
 end
 
---- Launch a non-interactive GUI process without occupying Yazi or waiting for
---- its window to close. stdout/stderr are disconnected so GUI tools cannot
---- block on inherited terminal streams.
+--- Launch a non-interactive GUI process through Yazi's orphan shell action.
+--- A direct Command:spawn() is still managed by Yazi and can be terminated
+--- when the functional-plugin task releases it before a GUI window appears.
 ---@param spec table
 ---@return boolean|nil launched
 ---@return any? err
 function M.launch(spec)
-	local command = Command(spec.command)
-		:arg(spec.args or {})
-		:stdin(Command.NULL)
-		:stdout(Command.NULL)
-		:stderr(Command.NULL)
-	if spec.cwd then command:cwd(spec.cwd) end
-	local child, err = command:spawn()
-	if not child then return nil, err end
+	local argv = { ya.quote(spec.command) }
+	for _, arg in ipairs(spec.args or {}) do argv[#argv + 1] = ya.quote(arg) end
+	local command = table.concat(argv, " ")
+	ya.emit("shell", { command, orphan = true })
 	return true
 end
 

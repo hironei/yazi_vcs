@@ -11,6 +11,12 @@ local Commands = require(".core-commands")
 
 local M = {}
 
+local function trace(stage)
+	if os.getenv("VCS_YAZI_TRACE") == "1" and type(ya.err) == "function" then
+		ya.err("vcs trace: " .. stage)
+	end
+end
+
 local current_context = ya.sync(function()
 	local tab, selected, info = cx.active, {}, {}
 	for _, url in pairs(tab.selected) do
@@ -34,7 +40,7 @@ local function context_root(cwd, cfg)
 		Notify.warn("Not inside a Git or SVN working copy.")
 		return nil
 	end
-	return kind, tostring(root)
+	return kind, root
 end
 
 local function selected_targets(root)
@@ -80,14 +86,21 @@ local function finish(root, operation, output)
 	Notify.info(summary ~= "" and "%s completed: %s" or "%s completed.", operation, summary)
 end
 
-local function with_lock(root, operation, fn)
+local function with_lock(root, operation, fn, read_only)
+	if read_only then
+		-- A functional plugin's entry already runs in Yazi's async task. On
+		-- Windows, wrapping this read-only closure in xpcall can leave that task
+		-- pending before its body starts. Let Yazi surface any Lua error instead.
+		return fn()
+	end
 	if not State.begin_action(root) then
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
 	end
-	local ok, result = xpcall(fn, debug.traceback)
+	-- Keep the cleanup explicit. Wrapping the async operation in xpcall can
+	-- leave the task pending on Windows before the operation body starts.
+	local result = fn()
 	State.end_action(root)
-	if not ok then Notify.error("%s failed: %s", operation, result) end
 	return result
 end
 
@@ -104,6 +117,17 @@ local function temp_file(content)
 	return path
 end
 
+--- Write view output through Yazi's async filesystem API. `view_operation`
+--- runs in an async plugin context, where Lua's blocking `io.open()` can
+--- leave the task pending on Windows before the pager is started.
+local function temp_output_file(content)
+	local url = Url(os.tmpname())
+	local path = tostring(url)
+	local ok, err = fs.write(url, content or "")
+	if not ok then return nil, err end
+	return path
+end
+
 local function read_file(path)
 	local file, err = io.open(path, "r")
 	if not file then return nil, err end
@@ -114,6 +138,10 @@ end
 
 local function remove_file(path)
 	if path then os.remove(path) end
+end
+
+local function remove_output_file(path)
+	if path then fs.remove("file", Url(path)) end
 end
 
 local function has_message(content)
@@ -187,15 +215,24 @@ local function run_external(root, operation, spec, absolute, cfg)
 	local context = external_context(root, absolute, cfg, spec)
 	local args, expand_err = External.expand_args(spec.args, context)
 	if not args then return Notify.error("%s configuration is invalid: %s", operation, expand_err) end
+	trace("external: " .. operation .. " command=" .. tostring(spec.command) .. " cwd=" .. tostring(root) .. " args=" .. table.concat(args, " | "))
 	local command = { command = spec.command, args = args, cwd = root }
 	if spec.interactive == false then
 		local launched, launch_err = Runner.launch(command)
+		trace("external:orphan-launch=" .. tostring(launched) .. " error=" .. tostring(launch_err))
 		if not launched then return failure(operation, nil, launch_err) end
 		return Notify.info("%s launched.", operation)
 	end
 	local status, err = Runner.interactive(command)
 	if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
 	Notify.info("%s completed.", operation)
+end
+
+local function has_diff(root, kind, paths)
+	local args = kind == "git" and Commands.git_diff(paths) or Commands.svn_diff(paths)
+	local output, err = Runner.output({ command = kind, args = args, cwd = root })
+	if not output or not output.status.success then return nil, output, err end
+	return Runner.summary(output.stdout, 1) ~= "", output, nil
 end
 
 function M.update()
@@ -255,6 +292,11 @@ local function view_operation(operation, config_section, kind_builder, external)
 		if not paths then return end
 		local section = cfg[config_section] or {}
 		if external then
+			if config_section == "diff" then
+				local changed, output, err = has_diff(root, kind, paths)
+				if changed == nil then return failure(operation .. " check", output, err) end
+				if not changed then return Notify.info("%s: no differences for selected targets.", operation) end
+			end
 			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg)
 		end
 		local configured = section[kind .. "_cli"]
@@ -266,15 +308,15 @@ local function view_operation(operation, config_section, kind_builder, external)
 		else
 			command, args = kind, fallback
 		end
-		local output, err = run(root, command, args, cfg)
+		local output, err = Runner.output({ command = command, args = args, cwd = root })
 		if not output or not output.status.success then return failure(operation, output, err) end
 		if Runner.summary(output.stdout, 1) == "" then return Notify.info("No output from %s.", operation) end
-		local file, temp_err = temp_file(output.stdout)
+		local file, temp_err = temp_output_file(output.stdout)
 		if not file then return Notify.error("Cannot create output file: %s", temp_err) end
 		local shown, display_err = display_file(file, cfg)
-		remove_file(file)
+		remove_output_file(file)
 		if not shown then return Notify.error("%s output could not be displayed: %s", operation, display_err) end
-	end)
+	end, true)
 end
 
 function M.diff(external)
@@ -294,14 +336,17 @@ function M.discard()
 	local _, _, cwd = current_context()
 	local kind, root = context_root(cwd, cfg)
 	if not kind then return end
+	trace("discard:start kind=" .. kind .. " root=" .. tostring(root))
 	with_lock(root, "Discard", function()
 		local paths, _, info, absolute = selected_targets(root)
 		if not paths then return end
+		trace("discard:targets=" .. table.concat(paths, " | "))
 		local abs_by_rel = {}
 		for i, path in ipairs(paths) do abs_by_rel[path] = absolute[i] end
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
 		local kept, excluded = Targets.exclude_untracked(paths, statuses)
+		trace("discard:kept=" .. table.concat(kept, " | ") .. " excluded=" .. table.concat(excluded, " | "))
 		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
 		local recursive = false
@@ -312,11 +357,17 @@ function M.discard()
 		if recursive then
 			local value, event = ya.input({ title = 'Type "revert" to confirm recursive discard:', pos = { "center", w = 50 } })
 			if event ~= 1 or value ~= (cfg.discard.recursive_confirm_text or "revert") then return Notify.info("Discard cancelled.") end
-		elseif cfg.discard.confirm and not ya.confirm({ title = "VCS Discard changes", body = body .. "\n\nThese changes cannot be restored." }) then
-			return
+		elseif cfg.discard.confirm then
+			local value, event = ya.input({
+				title = 'Type "discard" to confirm:\n' .. body,
+				pos = { "center", w = 60 },
+			})
+			if event ~= 1 or value ~= "discard" then return Notify.info("Discard cancelled.") end
 		end
 		local fallback = kind == "git" and Commands.git_discard(kept) or Commands.svn_discard(kept, recursive)
+		trace("discard:run command=" .. kind .. " args=" .. table.concat(fallback, " | "))
 		local output, err = run(root, kind, fallback, cfg)
+		trace("discard:run-result=" .. tostring(output and output.status and output.status.success) .. " error=" .. tostring(err))
 		local operation = kind:gsub("^%l", string.upper) .. " discard"
 		if not output or not output.status.success then return failure(operation, output, err) end
 		finish(root, operation, output)

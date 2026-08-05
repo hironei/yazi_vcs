@@ -20,7 +20,7 @@ local function root_for_git(cfg)
 		Notify.warn("This Git-only operation requires a Git repository.")
 		return nil
 	end
-	return tostring(root)
+	return root
 end
 
 local function run(root, args, cfg)
@@ -36,9 +36,10 @@ local function with_lock(root, operation, fn)
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
 	end
-	local ok, result = xpcall(fn, debug.traceback)
+	-- Keep the cleanup explicit. Wrapping the async operation in xpcall can
+	-- leave the task pending on Windows before the operation body starts.
+	local result = fn()
 	State.end_action(root)
-	if not ok then Notify.error("%s failed: %s", operation, result) end
 	return result
 end
 
@@ -60,7 +61,7 @@ local function validate_name(root, name, cfg)
 		Notify.error("Invalid branch name: %s", reason)
 		return false
 	end
-	local output, err = run(root, Git.check_ref_format_args(name), cfg)
+	local output, err = Runner.output({ command = "git", args = Git.check_ref_format_args(name), cwd = root })
 	if not output or not output.status.success then
 		fail("Branch name validation", output, err)
 		return false
@@ -70,7 +71,7 @@ end
 
 local function branch_data(root, cfg, include_remote)
 	if include_remote == nil then include_remote = cfg.git.branch.show_remote ~= false end
-	local output, err = run(root, Git.branch_list_args(include_remote), cfg)
+	local output, err = Runner.output({ command = "git", args = Git.branch_list_args(include_remote), cwd = root })
 	if not output or not output.status.success then
 		fail("Branch list", output, err)
 		return nil
@@ -78,28 +79,27 @@ local function branch_data(root, cfg, include_remote)
 	return Git.parse_branches(output.stdout), output.stdout
 end
 
-local function temp_file(content)
-	local path = os.tmpname()
-	local file, err = io.open(path, "w")
-	if not file then return nil, err end
-	file:write(content or "")
-	file:close()
+local function temp_output_file(content)
+	local url = Url(os.tmpname())
+	local path = tostring(url)
+	local ok, err = fs.write(url, content or "")
+	if not ok then return nil, err end
 	return path
 end
 
 local function display_output(content, cfg)
-	local file, err = temp_file(content)
+	local file, err = temp_output_file(content)
 	if not file then return nil, err end
 	local viewer = cfg.pager and cfg.pager.command and cfg.pager.command ~= "" and cfg.pager or cfg.editor
 	if not viewer or not viewer.command or viewer.command == "" then
-		os.remove(file)
+		fs.remove("file", Url(file))
 		return nil, "pager/editor is not configured"
 	end
 	local args = {}
 	for _, value in ipairs(viewer.args or {}) do args[#args + 1] = value end
 	args[#args + 1] = file
 	local status, command_err = Runner.interactive({ command = viewer.command, args = args })
-	os.remove(file)
+	fs.remove("file", Url(file))
 	if not status then return nil, command_err end
 	if not status.success then return nil, "viewer exited with code " .. tostring(status.code or "unknown") end
 	return true
