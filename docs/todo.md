@@ -24,6 +24,7 @@
 
 ## Phase 4：外部連携・改善
 
+- [x] status barへGit branch／SVNのリポジトリ相対位置を表示
 - [x] 外部Diff（`--diff-cmd`ラッパーを含む）
 - [x] 外部Log
 - [x] Windows GUIツール連携

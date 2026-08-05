@@ -11,6 +11,14 @@ local M = {}
 
 M.capabilities = { push = true, branch = true, switch = true }
 
+function M.info_spec(root)
+	return { command = "git", args = { "branch", "--show-current" }, cwd = root }
+end
+
+function M.parse_info(stdout)
+	return require(".core-vcs-info").parse_git(stdout)
+end
+
 --- Build the argument list for `git status` (requirements §8.4). Every
 --- flag is there for a documented reason:
 ---   --no-optional-locks   don't contend with a `git` the user is running

@@ -24,6 +24,18 @@ local M = {}
 
 M.capabilities = { push = false, branch = false, switch = false }
 
+function M.info_spec(root)
+	return { command = "svn", args = { "info", "--show-item", "url" }, cwd = root }
+end
+
+function M.repository_root_info_spec(root)
+	return { command = "svn", args = { "info", "--show-item", "repos-root-url" }, cwd = root }
+end
+
+function M.parse_info(url, repository_root)
+	return require(".core-vcs-info").parse_svn(url, repository_root)
+end
+
 local ENTITIES = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'" }
 
 --- Decode the XML escapes SVN emits in attribute values: the five named

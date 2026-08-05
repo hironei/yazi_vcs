@@ -4,12 +4,13 @@
 
 ## 構成
 
-- `main.lua`: fetcher、状態表示、status refresh、操作dispatch
+- `main.lua`: fetcher、状態表示、status barのGit branch／SVN位置表示、status refresh、操作dispatch
 - `actions.lua`: Update／Commit／CLI Diff／CLI Log／Discard、外部Diff／Logの実行フロー
 - `git-actions.lua`: Push、Branch、SwitchのGit操作フロー
 - `core-external.lua`: 外部環境判定、パス形式、プレースホルダー展開、設定検証
 - `core-runner.lua`: 非対話runner、タイムアウト、`ui.hide()`による対話実行、GUI非占有起動
-- `core-state.lua`: root別statusと同一root操作ロック
+- `core-state.lua`: root別status／VCS位置情報と同一root操作ロック
+- `core-vcs-info.lua`: Git branch／SVN URLの解析とstatus bar向け整形
 
 ## 外部操作フロー
 
@@ -30,6 +31,8 @@ VCS CLIはroot-relativeまたは実行環境のnative形式を使います。外
 ## 性能境界
 
 fetcherは表示中ファイルの相対パスだけをbackendへ渡し、Git statusは`--no-optional-locks`とporcelain v2 NUL出力を使用します。全リポジトリ走査を避けることで大規模リポジトリでもYaziの表示範囲に処理を限定します。
+
+VCS位置情報もfetcher内で取得し、描画コールバックではstateの参照だけを行います。Gitは`git branch --show-current`、SVNは`svn info --show-item url`と`repos-root-url`を使い、SVNはリポジトリルートからの相対位置（`base_url/trunk`など）へ短縮して表示します。
 
 ## 検証境界
 
