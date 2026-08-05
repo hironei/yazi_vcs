@@ -82,6 +82,18 @@ return function(t)
 		t.eq(root, nil, "find_git_root returns nil when no .git is found")
 	end
 
+	-- Some Windows URL backends represent a filesystem root by returning the
+	-- root itself from `parent`. Detection must terminate rather than leave a
+	-- fetcher/action task running indefinitely.
+	do
+		local fs = {
+			["C:/repo"] = { parent = "C:/" },
+			["C:/"] = { parent = "C:/" },
+		}
+		local root = detector.find_git_root("C:/repo", fake_fsops(fs))
+		t.eq(root, nil, "find_git_root terminates when parent returns itself")
+	end
+
 	-- SVN: single .svn at the working-copy root, found from a subdirectory.
 	do
 		local fs = {
@@ -92,6 +104,16 @@ return function(t)
 		}
 		local root = detector.find_svn_root("/wc/sub", fake_fsops(fs))
 		t.eq(root, "/wc", "find_svn_root walks up to the sole .svn directory")
+	end
+
+	-- A non-trivial parent cycle must also terminate when no SVN root exists.
+	do
+		local fs = {
+			["/a"] = { parent = "/b" },
+			["/b"] = { parent = "/a" },
+		}
+		local root = detector.find_svn_root("/a", fake_fsops(fs))
+		t.eq(root, nil, "find_svn_root terminates on a parent cycle")
 	end
 
 	-- pick(): closer root wins regardless of priority order.

@@ -34,7 +34,7 @@ local function context_root(cwd, cfg)
 		Notify.warn("Not inside a Git or SVN working copy.")
 		return nil
 	end
-	return kind, tostring(root)
+	return kind, root
 end
 
 local function selected_targets(root)
@@ -80,7 +80,13 @@ local function finish(root, operation, output)
 	Notify.info(summary ~= "" and "%s completed: %s" or "%s completed.", operation, summary)
 end
 
-local function with_lock(root, operation, fn)
+local function with_lock(root, operation, fn, read_only)
+	if read_only then
+		-- A functional plugin's entry already runs in Yazi's async task. On
+		-- Windows, wrapping this read-only closure in xpcall can leave that task
+		-- pending before its body starts. Let Yazi surface any Lua error instead.
+		return fn()
+	end
 	if not State.begin_action(root) then
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
@@ -104,6 +110,17 @@ local function temp_file(content)
 	return path
 end
 
+--- Write view output through Yazi's async filesystem API. `view_operation`
+--- runs in an async plugin context, where Lua's blocking `io.open()` can
+--- leave the task pending on Windows before the pager is started.
+local function temp_output_file(content)
+	local url = Url(os.tmpname())
+	local path = tostring(url)
+	local ok, err = fs.write(url, content or "")
+	if not ok then return nil, err end
+	return path
+end
+
 local function read_file(path)
 	local file, err = io.open(path, "r")
 	if not file then return nil, err end
@@ -114,6 +131,10 @@ end
 
 local function remove_file(path)
 	if path then os.remove(path) end
+end
+
+local function remove_output_file(path)
+	if path then fs.remove("file", Url(path)) end
 end
 
 local function has_message(content)
@@ -266,15 +287,15 @@ local function view_operation(operation, config_section, kind_builder, external)
 		else
 			command, args = kind, fallback
 		end
-		local output, err = run(root, command, args, cfg)
+		local output, err = Runner.output({ command = command, args = args, cwd = root })
 		if not output or not output.status.success then return failure(operation, output, err) end
 		if Runner.summary(output.stdout, 1) == "" then return Notify.info("No output from %s.", operation) end
-		local file, temp_err = temp_file(output.stdout)
+		local file, temp_err = temp_output_file(output.stdout)
 		if not file then return Notify.error("Cannot create output file: %s", temp_err) end
 		local shown, display_err = display_file(file, cfg)
-		remove_file(file)
+		remove_output_file(file)
 		if not shown then return Notify.error("%s output could not be displayed: %s", operation, display_err) end
-	end)
+	end, true)
 end
 
 function M.diff(external)

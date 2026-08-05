@@ -8,6 +8,28 @@
 -- `Url` objects and is exercised only inside Yazi itself.
 local M = {}
 
+--- Walk a directory hierarchy without assuming the root's `parent` is nil.
+--- On Windows, URL backends may represent a filesystem root by returning the
+--- same URL from `parent`; terminate on that (or any other cycle) so VCS
+--- detection cannot leave a fetcher or action task running forever.
+---@param dir any
+---@param fsops table
+---@param inspect fun(dir:any): any?
+---@return any?
+local function walk_up(dir, fsops, inspect)
+	local seen = {}
+	while dir do
+		local key = tostring(dir)
+		if seen[key] then return nil end
+		seen[key] = true
+
+		local found = inspect(dir)
+		if found then return found end
+		dir = fsops.parent(dir)
+	end
+	return nil
+end
+
 --- Find the Git repository root by walking `dir` upward looking for
 --- `.git`. `.git` may be a directory (normal repo) or a file starting
 --- with "gitdir: " (worktree / submodule) — requirements §6.2. Uses no
@@ -16,20 +38,18 @@ local M = {}
 ---@param fsops table         { join(dir,name)->handle, parent(dir)->handle|nil, cha(handle)->{is_dir:boolean}|nil, read_head(handle,n)->string|nil }
 ---@return any?               the repository root handle, or nil
 function M.find_git_root(dir, fsops)
-	while dir do
-		local git = fsops.join(dir, ".git")
+	return walk_up(dir, fsops, function(current)
+		local git = fsops.join(current, ".git")
 		local cha = fsops.cha(git)
 		if cha then
 			if cha.is_dir then
-				return dir
+				return current
 			end
 			if fsops.read_head(git, 8) == "gitdir: " then
-				return dir
+				return current
 			end
 		end
-		dir = fsops.parent(dir)
-	end
-	return nil
+	end)
 end
 
 --- Find the SVN working-copy root by walking `dir` upward looking for a
@@ -42,15 +62,13 @@ end
 ---@param fsops table
 ---@return any?
 function M.find_svn_root(dir, fsops)
-	while dir do
-		local svn = fsops.join(dir, ".svn")
+	return walk_up(dir, fsops, function(current)
+		local svn = fsops.join(current, ".svn")
 		local cha = fsops.cha(svn)
 		if cha and cha.is_dir then
-			return dir
+			return current
 		end
-		dir = fsops.parent(dir)
-	end
-	return nil
+	end)
 end
 
 --- Choose between a detected Git root and SVN root per requirements §6.4:
@@ -111,11 +129,17 @@ end
 ---@param cwd Url
 ---@param priority string[]
 ---@return "git"|"svn"|nil kind
----@return Url? root
+---@return string? root
 function M.detect(cwd, priority)
 	local fsops = real_fsops()
-	local git_root = M.find_git_root(cwd, fsops)
-	local svn_root = M.find_svn_root(cwd, fsops)
+	-- Each upward traversal accesses Url userdata repeatedly. Give Git and SVN
+	-- their own clone, then turn a found root into a plain string before the
+	-- next traversal. Reusing one Url here can leave the returned value owned by
+	-- a different async call on Windows, which stalls its later `tostring()`.
+	local git_url = M.find_git_root(Url(cwd), fsops)
+	local git_root = git_url and tostring(git_url) or nil
+	local svn_url = M.find_svn_root(Url(cwd), fsops)
+	local svn_root = svn_url and tostring(svn_url) or nil
 	return M.pick(git_root, svn_root, priority)
 end
 

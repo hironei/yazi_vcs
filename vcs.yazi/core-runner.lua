@@ -20,6 +20,19 @@ function M.command_spec(spec)
 	}
 end
 
+--- Run a command and collect its complete output through Yazi's built-in
+--- `Command:output()` path. This is the path used by the official git.yazi
+--- fetcher and is suitable for bounded, read-only output such as status,
+--- diff, and log.
+---@param spec table { command:string, args:string[], cwd:string? }
+---@return table|nil output { status={success,code}, stdout:string, stderr:string }
+---@return any? err
+function M.output(spec)
+	local command = Command(spec.command):arg(spec.args or {})
+	if spec.cwd then command:cwd(spec.cwd) end
+	return command:output()
+end
+
 ---@param output table|nil
 ---@param err any
 ---@return string
@@ -153,18 +166,17 @@ end
 ---@return any? err
 function M.interactive(spec)
 	local permit = ui.hide()
-	local ok, status, err = xpcall(function()
-		local command = Command(spec.command)
-			:arg(spec.args or {})
-			:stdin(Command.INHERIT)
-			:stdout(Command.INHERIT)
-			:stderr(Command.INHERIT)
-		if spec.cwd then command:cwd(spec.cwd) end
-		local result, command_err = command:status()
-		return result, command_err
-	end, debug.traceback)
+	-- `Command:status()` reports failures as its second return value. Avoid an
+	-- xpcall wrapper here: on Windows it can leave Yazi's async task pending
+	-- immediately after ui.hide(), before the inherited-terminal command runs.
+	local command = Command(spec.command)
+		:arg(spec.args or {})
+		:stdin(Command.INHERIT)
+		:stdout(Command.INHERIT)
+		:stderr(Command.INHERIT)
+	if spec.cwd then command:cwd(spec.cwd) end
+	local status, err = command:status()
 	permit:drop()
-	if not ok then return nil, status end
 	return status, err
 end
 

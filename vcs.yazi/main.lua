@@ -18,16 +18,16 @@ function M:setup(opts)
 	if opts == nil and type(self) == "table" and self ~= M then opts = self end
 	Config.setup(opts)
 	local cfg = Config.get()
-	Entity:children_add(function(entity)
-		if not entity._file.in_current then return "" end
-		local root = State.root_of(tostring(entity._file.url.base or entity._file.url.parent))
+	Linemode:children_add(function(self)
+		if not self._file.in_current then return "" end
+		local root = State.root_of(tostring(self._file.url.base or self._file.url.parent))
 		if not root then return "" end
-		local rel = Path.strip_prefix(root, tostring(entity._file.url))
+		local rel = Path.strip_prefix(root, tostring(self._file.url))
 		local name = Status.display_name(rel and State.status_of(root, rel) or nil)
 		if not name or name == "clean" then return "" end
 		local sign = cfg.signs[name]
 		if not sign or sign == "" then return "" end
-		if entity._file.is_hovered then return ui.Line { sign, " " } end
+		if self._file.is_hovered then return ui.Line { sign, " " } end
 		local sty = th.vcs and th.vcs[name]
 		return sty and ui.Line { ui.Span(sign):style(sty), " " } or ui.Line { sign, " " }
 	end, cfg.status.order)
@@ -40,7 +40,7 @@ function M:fetch(job)
 	local cwd_str, cfg = tostring(cwd), Config.get()
 	local kind, root = Detector.detect(cwd, cfg.detection.priority)
 	if not kind then State.forget(cwd_str); return true end
-	local root_str, queried, seen = tostring(root), {}, {}
+	local root_str, queried, seen = root, {}, {}
 	for _, file in ipairs(job.files) do
 		local rel = Path.strip_prefix(root_str, tostring(file.url))
 		if rel and not seen[rel] then
@@ -49,10 +49,7 @@ function M:fetch(job)
 		end
 	end
 	local backend = BACKENDS[kind]
-	local output, err = Runner.run(
-		backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }),
-		cfg.runner.timeout_ms
-	)
+	local output, err = Runner.output(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }))
 	if not output then return true, Err("Cannot run `%s status`: %s", kind, err) end
 	if not output.status.success then
 		return true, Err("Cannot run `%s status`: %s", kind, Runner.error_text(output, err))
@@ -76,7 +73,7 @@ end
 function M.refresh_status()
 	local cwd, cfg = State.current_url(), Config.get()
 	local _, detected_root = Detector.detect(cwd, cfg.detection.priority)
-	local root = detected_root and tostring(detected_root) or State.root_of(tostring(cwd))
+	local root = detected_root or State.root_of(tostring(cwd))
 	if not root then return Notify.warn("Not inside a Git or SVN working copy.") end
 	State.clear_root(root)
 	ya.emit("refresh", {})
