@@ -28,10 +28,6 @@ function M.info_spec(root)
 	return { command = "svn", args = { "info", "--show-item", "url" }, cwd = root }
 end
 
-function M.repository_root_info_spec(root)
-	return { command = "svn", args = { "info", "--show-item", "repos-root-url" }, cwd = root }
-end
-
 function M.revision_spec(root, relative_path)
 	return {
 		command = "svn",
@@ -40,8 +36,8 @@ function M.revision_spec(root, relative_path)
 	}
 end
 
-function M.parse_info(url, repository_root)
-	return require(".core-vcs-info").parse_svn(url, repository_root)
+function M.parse_info(url)
+	return require(".core-vcs-info").parse_svn(url)
 end
 
 local ENTITIES = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'" }

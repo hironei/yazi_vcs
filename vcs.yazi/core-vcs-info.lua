@@ -15,8 +15,8 @@ function M.parse_git(stdout)
 	return { branch = branch ~= "" and branch or "HEAD (detached)" }
 end
 
-function M.parse_svn(url, repository_root)
-	return { url = trim(url), repository_root = trim(repository_root) }
+function M.parse_svn(url)
+	return { url = trim(url) }
 end
 
 local function relative_path(relpath)
@@ -45,17 +45,6 @@ function M.git_target(branch, relpath)
 	branch = trim(branch)
 	relpath = relative_path(relpath)
 	return relpath == "" and branch or branch .. "/" .. relpath
-end
-
-function M.svn_location(url, repository_root)
-	url = trim_slashes(url)
-	repository_root = trim_slashes(repository_root)
-	if repository_root ~= "" and (url == repository_root or url:sub(1, #repository_root + 1) == repository_root .. "/") then
-		local relative = url:sub(#repository_root + 1):gsub("^/+", "")
-		local name = repository_root:match("([^/]+)$") or repository_root
-		return relative == "" and name or name .. "/" .. relative
-	end
-	return url
 end
 
 function M.format(kind, info, relpath)
