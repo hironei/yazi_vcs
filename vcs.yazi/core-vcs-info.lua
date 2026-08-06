@@ -19,6 +19,34 @@ function M.parse_svn(url, repository_root)
 	return { url = trim(url), repository_root = trim(repository_root) }
 end
 
+local function relative_path(relpath)
+	relpath = tostring(relpath or ""):gsub("\\\\", "/"):gsub("^/+", "")
+	return relpath == "." and "" or relpath
+end
+
+--- Build the URL for a path below an already-known SVN working-copy URL.
+--- This is intentionally pure: the caller supplies the root URL and the
+--- root-relative path computed from the local filesystem path.
+---@param root_url string
+---@param relpath string|nil  slash-separated, root-relative path; '.' is the root
+---@return string
+function M.svn_target_url(root_url, relpath)
+	root_url = trim_slashes(root_url)
+	relpath = relative_path(relpath)
+	if root_url == "" then return relpath end
+	return relpath == "" and root_url or root_url .. "/" .. relpath
+end
+
+--- Build the branch/path identifier used by the Git clipboard actions.
+---@param branch string
+---@param relpath string|nil  slash-separated, root-relative path; '.' is the root
+---@return string
+function M.git_target(branch, relpath)
+	branch = trim(branch)
+	relpath = relative_path(relpath)
+	return relpath == "" and branch or branch .. "/" .. relpath
+end
+
 function M.svn_location(url, repository_root)
 	url = trim_slashes(url)
 	repository_root = trim_slashes(repository_root)
@@ -30,13 +58,13 @@ function M.svn_location(url, repository_root)
 	return url
 end
 
-function M.format(kind, info)
+function M.format(kind, info, relpath)
 	if not info then return nil end
 	if kind == "git" and info.branch and info.branch ~= "" then
 		return "(" .. info.branch .. ")"
 	end
 	if kind == "svn" and info.url and info.url ~= "" then
-		return "(svn: " .. M.svn_location(info.url, info.repository_root) .. ")"
+		return "(svn: " .. M.svn_target_url(info.url, relpath) .. ")"
 	end
 	return nil
 end

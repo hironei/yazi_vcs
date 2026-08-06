@@ -15,6 +15,10 @@ function M.info_spec(root)
 	return { command = "git", args = { "branch", "--show-current" }, cwd = root }
 end
 
+function M.revision_spec(root)
+	return { command = "git", args = { "rev-parse", "--short", "HEAD" }, cwd = root }
+end
+
 function M.parse_info(stdout)
 	return require(".core-vcs-info").parse_git(stdout)
 end

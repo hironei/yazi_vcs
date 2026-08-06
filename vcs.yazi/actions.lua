@@ -8,6 +8,9 @@ local Runner = require(".core-runner")
 local State = require(".core-state")
 local Targets = require(".core-targets")
 local Commands = require(".core-commands")
+local GitBackend = require(".backend-git")
+local SvnBackend = require(".backend-svn")
+local VcsInfo = require(".core-vcs-info")
 
 local M = {}
 
@@ -374,6 +377,61 @@ function M.discard()
 	end)
 end
 
+local function output_value(output)
+	return tostring(output and output.stdout or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function copy_action(with_revision)
+	local cfg = Config.get()
+	local _, _, cwd = current_context()
+	local kind, root = context_root(cwd, cfg)
+	if not kind then return end
+
+	local relative, _, _, absolute = selected_targets(root)
+	if not relative or #relative == 0 then return Notify.warn("No VCS target selected.") end
+	local relpath, target = relative[1], absolute[1]
+	local record = State.info_of(root)
+	if not record or record.kind ~= kind or not record.data then
+		return Notify.error("Cannot copy VCS URL: repository metadata is not available yet.")
+	end
+
+	local info = record.data
+	local value
+	if kind == "svn" then
+		value = VcsInfo.svn_target_url(info.url, relpath)
+	else
+		value = VcsInfo.git_target(info.branch, relpath)
+	end
+	if not value or value == "" then return Notify.error("Cannot copy VCS URL: metadata is incomplete.") end
+
+	if with_revision then
+		local output, err
+		if kind == "svn" then
+			output, err = Runner.output(SvnBackend.revision_spec(root, relpath))
+		else
+			output, err = Runner.output(GitBackend.revision_spec(root))
+		end
+		if not output or not output.status.success then
+			return Notify.error("Copy URL with revision failed: %s", Runner.error_text(output, err))
+		end
+		local revision = output_value(output)
+		if revision == "" then return Notify.error("Copy URL with revision failed: no revision was returned.") end
+		value = value .. "@" .. revision
+	end
+
+	ya.clipboard(value)
+	Notify.info("Copied to clipboard: %s", value)
+	return target
+end
+
+function M.copy_url()
+	return copy_action(false)
+end
+
+function M.copy_url_revision()
+	return copy_action(true)
+end
+
 local function named_external(args)
 	return args and (args.external == true or args.external == "true" or args[2] == "--external") or false
 end
@@ -385,6 +443,8 @@ function M.entry(action, args)
 		diff = function() return M.diff(named_external(args)) end,
 		log = function() return M.log(named_external(args)) end,
 		discard = M.discard,
+		["copy-url"] = M.copy_url,
+		["copy-url-revision"] = M.copy_url_revision,
 	}
 	if handlers[action] then return handlers[action]() end
 	Notify.warn("Unknown action: %s", tostring(action))

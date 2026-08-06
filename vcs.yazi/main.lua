@@ -24,9 +24,8 @@ local function fetch_vcs_info(kind, root)
 		end
 	elseif kind == "svn" then
 		local url_output = Runner.output(backend.info_spec(root))
-		local root_output = Runner.output(backend.repository_root_info_spec(root))
-		if url_output and url_output.status.success and root_output and root_output.status.success then
-			return { kind = kind, data = backend.parse_info(url_output.stdout, root_output.stdout) }
+		if url_output and url_output.status.success then
+			return { kind = kind, data = backend.parse_info(url_output.stdout) }
 		end
 	end
 	return nil
@@ -42,7 +41,11 @@ function M:setup(opts)
 			if not root then return "" end
 			local record = State.info_of(root)
 			local kind, info = record and record.kind, record and record.data
-			local label = VcsInfo.format(kind, info)
+			local hovered = cx.active.current.hovered
+			local target = hovered and tostring(hovered.url) or tostring(cx.active.current.cwd)
+			local relpath = kind == "svn" and Path.strip_prefix(root, target) or nil
+			if kind == "svn" and not relpath then return "" end
+			local label = VcsInfo.format(kind, info, relpath)
 			if not label then return "" end
 			return ui.Line { " ", ui.Span(label):fg(kind == "git" and "blue" or "yellow"), " " }
 		end, cfg.info.order, Status.RIGHT)

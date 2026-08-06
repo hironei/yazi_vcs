@@ -89,7 +89,7 @@ group = "vcs"
 require("vcs"):setup()
 ```
 
-これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。status bar右側には、Gitなら`(branch-name)`、SVNなら`(svn: base_url/trunk)`のように現在位置を表示します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
+これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。status bar右側には、Gitなら`(branch-name)`、SVNなら現在ホバー中のファイル／ディレクトリ（ホバー対象がなければ現在のcwd）のURLを`(svn: https://host/svn/base_url/trunk/file.txt)`のように表示します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
 
 ### 3. Yaziを再起動する
 
@@ -116,9 +116,17 @@ desc = "VCS log"
 on = [ "g", "v", "L" ]
 run = "plugin vcs -- log --external"
 desc = "External VCS log"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "u" ]
+run = "plugin vcs -- copy-url"
+desc = "Copy VCS URL"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "U" ]
+run = "plugin vcs -- copy-url-revision"
+desc = "Copy VCS URL with revision"
 ```
 
-既存の`update`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`g`→`v`の後に操作キーを続けて入力します。
+既存の`update`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`copy-url`は選択対象（複数選択時は先頭）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
 
 ## 外部Diff／Log設定
 

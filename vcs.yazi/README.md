@@ -1,11 +1,13 @@
 # vcs.yazi
 
-Git／SVNの状態とリポジトリ位置表示、Phase 2の共通操作、Phase 3のGit操作、Phase 4の外部Diff／Log連携を提供するYaziプラグインです。status bar右側にGitの現在branch、またはSVNの`base_url/trunk`のようなリポジトリ相対位置を表示します。
+Git／SVNの状態とリポジトリ位置表示、Phase 2の共通操作、Phase 3のGit操作、Phase 4の外部Diff／Log連携を提供するYaziプラグインです。status bar右側にGitの現在branch、または現在ホバー中のファイル／ディレクトリ（ホバー対象がなければcwd）のSVN URLを表示します。
 
 Phase 4の操作:
 
 - CLI Diff／Log: `plugin vcs -- diff`、`plugin vcs -- log`
 - 外部Diff／Log: `plugin vcs -- diff --external`、`plugin vcs -- log --external`
+- クリップボード: `plugin vcs -- copy-url`、`plugin vcs -- copy-url-revision`
+- クリップボード対象は選択対象（複数選択時は先頭）で、SVNはURL、Gitは`branch/root-relative-path`形式です
 - TUIは`interactive = true`で`ui.hide()`配下、GUIは`interactive = false`で非占有起動
 - WSLの`wslpath -w`、Git Bashの`cygpath -w`による外部GUIパス変換
 
