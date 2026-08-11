@@ -1360,7 +1360,7 @@ require("vcs"):setup({
 - 標準エラーを取得する（`Command.PIPED`）
 - 終了コードを取得する
 - VCSルートまたはカレントディレクトリを`:cwd()`として実行する
-- コマンドが存在しない場合、`Command:output()`が返す`Error`を捕捉し明確に通知する
+- コマンドが存在しない場合、共通Runnerのspawn／実行APIが返す`Error`を捕捉し明確に通知する
 - 実行中は必要に応じてローディング状態を表示する
 - 非対話型のCLI処理（status、メタデータ取得、Diff、Log、Branch検証を含む）は`runner.timeout_ms`を適用する
 - 認証、Update、Commitエディタ、pager、TUIなどの対話型処理はタイムアウト対象外とし、ターミナルを継承する

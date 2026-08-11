@@ -117,7 +117,7 @@ require("vcs"):setup()
 | `log.git_cli` | `git log --decorate --oneline --graph ...` | Gitの対象指定Log |
 | `log.svn_cli` | `{ "svn", "log", "--", "{targets}" }` | SVNのCLI Log |
 | `discard.recursive_confirm_text` | `"revert"` | 再帰的Discardの確認文字列 |
-| `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト。`0`は無制限ではありません |
+| `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト。`0`はタイムアウト無効（無期限） |
 | `git.push.default_remote` | `"origin"` | upstream未設定時に優先するremote |
 | `git.push.set_upstream_if_missing` | `true` | upstream未設定時に`--set-upstream`を許可 |
 | `git.branch.show_remote` | `true` | Branch一覧へremote Branchを含める |

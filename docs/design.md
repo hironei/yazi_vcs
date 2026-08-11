@@ -41,7 +41,7 @@ Yazi fetcher(job.files)
 
 `Runner.run(spec, timeout_ms)`は`Command:spawn()`、PIPED stdout/stderr、`Child:read_line_with`で実装する。`timeout_ms > 0`ではdeadlineまで読み取り、期限到達時に`start_kill()`して`timed_out`結果を返す。`timeout_ms = 0`は無期限設定だが、API上のpollには有限の60秒窓を使い、event=3だけではkillしない。
 
-Status、VCS info、revision、差分確認、CLI Diff/Log、Branch検証・一覧、パス変換はこの経路を使う。stdinは`Command.NULL`で、認証入力待ちを非対話タスクへ持ち込まない。
+Status、VCS info、revision、差分確認、CLI Diff/Log、Branch検証・一覧、パス変換はこの経路を使う。stdinは`Command.NULL`で、認証入力待ちを非対話タスクへ持ち込まない。`timeout_ms = 0`はタイムアウトを無効にする。
 
 ### 4.2 対話型とGUI
 

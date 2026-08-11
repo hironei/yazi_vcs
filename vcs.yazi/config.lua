@@ -50,8 +50,13 @@ function M.deep_merge(defaults, overrides)
 	if type(overrides) ~= "table" then return defaults end
 	local result = {}
 	local function is_array(value)
+		local count = 0
 		for key in pairs(value) do
 			if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then return false end
+			count = count + 1
+		end
+		for index = 1, count do
+			if value[index] == nil then return false end
 		end
 		return true
 	end
