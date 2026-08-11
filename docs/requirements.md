@@ -1,7 +1,7 @@
 # Yazi向け Git／SVN 統合VCSプラグイン 要件定義
 
 - 対象Yaziバージョン：26.5.6 以降
-- 最終更新：2026-07-29
+- 最終更新：2026-08-11
 
 ---
 
@@ -24,7 +24,7 @@
 | Ignored状態 | `git status --porcelain=v2 -z -uall`はignoredを出力しない（実測） | §8.4 に`--ignored=matching`を追加 |
 | rename解析 | `-z`+porcelain v2のrenameレコードはNUL区切りフィールドを2つ消費（実測） | §8.4、§26.1 に明記 |
 | タイムアウト | Yaziの`Command`にタイムアウトAPIは存在しない | §21.1 に実現方式を明記 |
-| キー割り当て | `v`はYazi既定の`visual_mode` | §19 のプレフィックスを`<C-g>`へ変更 |
+| キー割り当て | `v`はYazi既定の`visual_mode` | `v`単独を潰さない任意のプレフィックスを設定例へ記載 |
 | 外部diff | `--diff-cmd difft`は引数規約が合わず動作しない | §12.5 にラッパー必須を明記 |
 
 ### 0.3 検証で判明した「初版より強くできる」項目
@@ -309,16 +309,7 @@ detection = {
 2. Hover中のファイル
 3. カレントディレクトリ
 
-操作ごとに対象範囲を制限可能とする。
-
-```lua
-scope = {
-    commit = "selected",
-    diff = "selected",
-    log = "selected",
-    discard = "selected",
-}
-```
+操作対象の選択優先順位は全操作で固定する。選択中の項目（複数選択時は全件）を優先し、選択がなければhover中の項目、最後にカレントディレクトリを使用する。操作ごとのscope設定は初期リリースの対象外とする。
 
 - 対象パスは必ずVCSルート配下であることを検証する
 - 空白、日本語、記号を含むパスを正しく処理する
@@ -428,7 +419,7 @@ git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-
 
 #### 8.4.2 簡易形式
 
-porcelain v1（`--porcelain=v1 -z`）も解析可能とするが、既定はv2とする。
+porcelain v1（`--porcelain=v1 -z`）は初期リリースの対象外とし、v2のみを実装・検証する。
 
 ### 8.5 SVNステータス取得
 
@@ -1178,7 +1169,7 @@ VCS
 
 `v`始まりのchordをprependすると、Yaziが後続キーを待つため**単独の`v`が事実上使用不能になる**。§7 が「選択中の複数ファイル」を第一優先の操作対象としている以上、その選択手段を潰すことになる。
 
-Yazi既定keymapで未使用の`<C-g>`をプレフィックスとする。
+Yazi既定の`v`単独操作を潰さないことを優先し、プレフィックスは設定例ごとに明示する。標準例は`<C-g>`、READMEとユーザーマニュアルの短い例は`g`→`v`とする。プラグイン内部へキーを固定しない。
 
 ```toml
 [[mgr.prepend_keymap]]
@@ -1285,7 +1276,6 @@ require("vcs"):setup({
     editor = {
         command = "nvim",
         args = {},
-        wait = true,
     },
 
     pager = {
@@ -1299,7 +1289,6 @@ require("vcs"):setup({
     },
 
     commit = {
-        default_scope = "selected",
         allow_empty_message = false,
         git_mode = "paths",             -- "paths" | "staged"
     },
@@ -1326,7 +1315,6 @@ require("vcs"):setup({
     discard = {
         confirm = true,
         recursive_confirm_text = "revert",
-        include_untracked = false,
     },
 
     runner = {
@@ -1337,19 +1325,14 @@ require("vcs"):setup({
         push = {
             default_remote = "origin",
             set_upstream_if_missing = true,
-            allow_force = false,
         },
 
         branch = {
             show_remote = true,
-            allow_force_delete = false,
-            validate_name = true,
         },
 
         switch = {
             auto_track_remote = true,
-            auto_stash = false,
-            allow_discard_changes = false,
         },
     },
 })
@@ -1362,6 +1345,8 @@ require("vcs"):setup({
 - `commit.auto_stage_git`を`commit.git_mode`へ置換（§11.2）
 - `log.git_cli_all`を追加（§13.2）
 - `runner.timeout_ms`を追加（§21.1）
+- 配列型の設定値は深いマージではなく、ユーザー指定値で全体を置換する
+- `commit.default_scope`、`editor.wait`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
 
 ---
 
@@ -1375,8 +1360,10 @@ require("vcs"):setup({
 - 標準エラーを取得する（`Command.PIPED`）
 - 終了コードを取得する
 - VCSルートまたはカレントディレクトリを`:cwd()`として実行する
-- コマンドが存在しない場合、`Command:output()`が返す`Error`を捕捉し明確に通知する
+- コマンドが存在しない場合、共通Runnerのspawn／実行APIが返す`Error`を捕捉し明確に通知する
 - 実行中は必要に応じてローディング状態を表示する
+- 非対話型のCLI処理（status、メタデータ取得、Diff、Log、Branch検証を含む）は`runner.timeout_ms`を適用する
+- 認証、Update、Commitエディタ、pager、TUIなどの対話型処理はタイムアウト対象外とし、ターミナルを継承する
 
 #### タイムアウトの実現方式
 
@@ -1407,6 +1394,7 @@ permit:drop()
 - 例外発生時も必ず`permit:drop()`が呼ばれるよう、`pcall`で保護する
 - GUIツール（TortoiseProc等）は占有せず、終了も待たない
 - 非対話型実行では`stdin`を`Command.NULL`に設定し、待ち状態にならないようにする
+- Updateは認証入力の可能性があるため、対話型経路（`Command.INHERIT`）で実行する
 
 ### 21.3 ログ
 
@@ -1498,6 +1486,7 @@ Commit, discard, or stash the changes before switching.
 - UIスレッドをブロックしない。描画層でI/Oを行わない（§5.5）
 - 同一ルートへの重複status実行の抑止はYaziのfetcherスケジューラが担う
 - Update、Commit、Push、Discard、Switch中は、同一ルートへの競合操作を`ya.sync`上のフラグで抑止する
+- 操作本体または対話コマンドでLuaエラーが発生しても、操作ロックと`ui.hide()`のpermitを必ず解放する。Windowsで過去にタスク保留を起こした共有`xpcall`は再導入しない
 - 操作完了後に §9 の経路で表示を更新する
 - 実行中にYaziが終了した場合の一時ファイル後始末は、OS標準の一時ディレクトリに置くことで最終的に回収されるものとし、明示的なクリーンアップは best-effort とする
 
@@ -1541,7 +1530,6 @@ Commit, discard, or stash the changes before switching.
   - **rename／copyレコード（`2`）が`-z`でNULフィールドを2つ消費するケース（必須。§8.4.1）**
   - untracked（`?`）、ignored（`!`）レコード
   - 日本語・空白・改行を含むパス
-- Git status porcelain v1解析
 - SVN status XML解析（XMLエスケープ、数値文字参照を含む）
 - 状態記号マッピング
 - 状態優先度の適用
@@ -1555,6 +1543,10 @@ Commit, discard, or stash the changes before switching.
 - upstream有無判定
 - エラー出力整形
 - 設定既定値とマージ
+- 配列設定の全体置換と空配列上書き
+- 非対話CLIのtimeout適用対象
+- Updateの認証可能な対話経路
+- Luaエラー時の操作ロック／`ui.hide()` permit解放
 - state破棄
 
 ### 26.2 結合テスト
@@ -1732,6 +1724,9 @@ READMEに以下を記載する。
 25. `git status`実行がユーザーの別端末でのgit操作を妨げない
 26. Yazi既定のキーバインド（特に`v`）を潰さない
 27. Windows 11＋Git BashおよびWSLで基本操作を確認できる
+28. Updateが認証入力を要求する場合に対話経路で入力できる
+29. 非対話型status／メタデータ／Diff／Log／Branch処理が`runner.timeout_ms`で終了する
+30. 操作本体または対話コマンドのLuaエラー後も、同一rootの操作とYazi画面が復帰する
 
 ---
 

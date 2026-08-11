@@ -166,17 +166,19 @@ end
 ---@return any? err
 function M.interactive(spec)
 	local permit = ui.hide()
-	-- `Command:status()` reports failures as its second return value. Avoid an
-	-- xpcall wrapper here: on Windows it can leave Yazi's async task pending
-	-- immediately after ui.hide(), before the inherited-terminal command runs.
-	local command = Command(spec.command)
-		:arg(spec.args or {})
-		:stdin(Command.INHERIT)
-		:stdout(Command.INHERIT)
-		:stderr(Command.INHERIT)
-	if spec.cwd then command:cwd(spec.cwd) end
-	local status, err = command:status()
+	-- Keep the protected region limited to command construction/execution. The
+	-- permit is dropped outside it so Lua errors cannot leave Yazi hidden.
+	local ok, status, err = pcall(function()
+		local command = Command(spec.command)
+			:arg(spec.args or {})
+			:stdin(Command.INHERIT)
+			:stdout(Command.INHERIT)
+			:stderr(Command.INHERIT)
+		if spec.cwd then command:cwd(spec.cwd) end
+		return command:status()
+	end)
 	permit:drop()
+	if not ok then return nil, status end
 	return status, err
 end
 

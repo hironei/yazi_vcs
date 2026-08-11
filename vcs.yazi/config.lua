@@ -49,12 +49,29 @@ M.defaults = {
 function M.deep_merge(defaults, overrides)
 	if type(overrides) ~= "table" then return defaults end
 	local result = {}
+	local function is_array(value)
+		local count = 0
+		for key in pairs(value) do
+			if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then return false end
+			count = count + 1
+		end
+		for index = 1, count do
+			if value[index] == nil then return false end
+		end
+		return true
+	end
+	local function copy(value)
+		if type(value) ~= "table" then return value end
+		local copied = {}
+		for key, item in pairs(value) do copied[key] = copy(item) end
+		return copied
+	end
 	for k, v in pairs(defaults) do
 		if type(v) == "table" and type(overrides[k]) == "table" then
-			result[k] = M.deep_merge(v, overrides[k])
+			result[k] = is_array(v) and copy(overrides[k]) or M.deep_merge(v, overrides[k])
 		elseif overrides[k] == nil then result[k] = v else result[k] = overrides[k] end
 	end
-	for k, v in pairs(overrides) do if result[k] == nil then result[k] = v end end
+	for k, v in pairs(overrides) do if result[k] == nil then result[k] = copy(v) end end
 	return result
 end
 
