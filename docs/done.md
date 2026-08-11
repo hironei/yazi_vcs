@@ -1,9 +1,19 @@
 # 完了記録
 
+## 2026-08-11 — Review findings #25〜#30 修正
+
+- `config.lua`: マップは深いマージ、配列は指定値で全体置換する設定マージへ修正。空配列と短いコマンド配列の回帰テストを追加
+- `actions.lua`: Updateを`ui.hide()`下の対話経路へ変更し、認証入力を許可。status／Diff／Log／revisionのread-only CLIをtimeout付きRunnerへ統一
+- `main.lua`／`git-actions.lua`: fetcherのstatus/info、Branch検証・一覧もtimeout付きRunnerへ統一
+- `core-runner.lua`／操作dispatch: 対話permitとroot操作ロックをLua例外時にも解放する`pcall`保護を追加
+- `docs/requirements.md`／`docs/design.md`／README／`docs/users-manual.md`: 現行仕様、timeout境界、認証、設定マージ、要件・設計トレーサビリティを同期
+- WindowsネイティブLua: `lua tests/run.lua`（204 passed / 0 failed）
+- Issue: [#25](https://github.com/hironei/yazi_vcs/issues/25)、[#26](https://github.com/hironei/yazi_vcs/issues/26)、[#27](https://github.com/hironei/yazi_vcs/issues/27)、[#28](https://github.com/hironei/yazi_vcs/issues/28)、[#29](https://github.com/hironei/yazi_vcs/issues/29)、[#30](https://github.com/hironei/yazi_vcs/issues/30)
+
 ## 2026-08-05 — status barのVCS位置表示
 
 - status bar右側へGitの現在branch（`(branch-name)`）を表示
-- SVNは`repos-root-url`からの相対位置（`(svn: base_url/trunk)`など）を表示
+- SVNはfetcherで取得したworking-copy URLへ対象のroot-relative pathを付加し、`(svn: https://host/svn/base_url/trunk/file.txt)`のように表示
 - 描画中のCLI実行を避け、fetcherで取得したroot別stateを参照
 - Git／SVN URL解析と表示整形の単体テストを追加
 

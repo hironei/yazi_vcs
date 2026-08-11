@@ -100,11 +100,16 @@ local function with_lock(root, operation, fn, read_only)
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
 	end
-	-- Keep the cleanup explicit. Wrapping the async operation in xpcall can
-	-- leave the task pending on Windows before the operation body starts.
-	local result = fn()
+	local ok, result = pcall(fn)
 	State.end_action(root)
+	if not ok then error(result, 0) end
 	return result
+end
+
+local function finish_interactive(root, operation)
+	State.clear_root(root)
+	ya.emit("refresh", {})
+	Notify.info("%s completed.", operation)
 end
 
 local function failure(operation, output, err)
@@ -231,9 +236,9 @@ local function run_external(root, operation, spec, absolute, cfg)
 	Notify.info("%s completed.", operation)
 end
 
-local function has_diff(root, kind, paths)
+local function has_diff(root, kind, paths, cfg)
 	local args = kind == "git" and Commands.git_diff(paths) or Commands.svn_diff(paths)
-	local output, err = Runner.output({ command = kind, args = args, cwd = root })
+	local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
 	if not output or not output.status.success then return nil, output, err end
 	return Runner.summary(output.stdout, 1) ~= "", output, nil
 end
@@ -246,10 +251,10 @@ function M.update()
 	with_lock(root, "Update", function()
 		local fallback = kind == "git" and Commands.git_update() or Commands.svn_update(nil)
 		local command, args = argv(cfg.update and cfg.update[kind], kind, fallback)
-		local output, err = run(root, command, args, cfg)
 		local operation = kind:gsub("^%l", string.upper) .. " update"
-		if not output or not output.status.success then return failure(operation, output, err) end
-		finish(root, operation, output)
+		local status, err = Runner.interactive({ command = command, args = args, cwd = root })
+		if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
+		finish_interactive(root, operation)
 	end)
 end
 
@@ -296,7 +301,7 @@ local function view_operation(operation, config_section, kind_builder, external)
 		local section = cfg[config_section] or {}
 		if external then
 			if config_section == "diff" then
-				local changed, output, err = has_diff(root, kind, paths)
+				local changed, output, err = has_diff(root, kind, paths, cfg)
 				if changed == nil then return failure(operation .. " check", output, err) end
 				if not changed then return Notify.info("%s: no differences for selected targets.", operation) end
 			end
@@ -311,7 +316,7 @@ local function view_operation(operation, config_section, kind_builder, external)
 		else
 			command, args = kind, fallback
 		end
-		local output, err = Runner.output({ command = command, args = args, cwd = root })
+		local output, err = Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
 		if not output or not output.status.success then return failure(operation, output, err) end
 		if Runner.summary(output.stdout, 1) == "" then return Notify.info("No output from %s.", operation) end
 		local file, temp_err = temp_output_file(output.stdout)
@@ -407,9 +412,9 @@ local function copy_action(with_revision)
 	if with_revision then
 		local output, err
 		if kind == "svn" then
-			output, err = Runner.output(SvnBackend.revision_spec(root, relpath))
+			output, err = Runner.run(SvnBackend.revision_spec(root, relpath), cfg.runner.timeout_ms)
 		else
-			output, err = Runner.output(GitBackend.revision_spec(root))
+			output, err = Runner.run(GitBackend.revision_spec(root), cfg.runner.timeout_ms)
 		end
 		if not output or not output.status.success then
 			return Notify.error("Copy URL with revision failed: %s", Runner.error_text(output, err))

@@ -15,15 +15,15 @@ local VcsInfo = require(".core-vcs-info")
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
 
-local function fetch_vcs_info(kind, root)
+local function fetch_vcs_info(kind, root, cfg)
 	local backend = BACKENDS[kind]
 	if kind == "git" then
-		local output = Runner.output(backend.info_spec(root))
+		local output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms)
 		if output and output.status.success then
 			return { kind = kind, data = backend.parse_info(output.stdout) }
 		end
 	elseif kind == "svn" then
-		local url_output = Runner.output(backend.info_spec(root))
+		local url_output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms)
 		if url_output and url_output.status.success then
 			return { kind = kind, data = backend.parse_info(url_output.stdout) }
 		end
@@ -81,7 +81,7 @@ function M:fetch(job)
 		end
 	end
 	local backend = BACKENDS[kind]
-	local output, err = Runner.output(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }))
+	local output, err = Runner.run(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }), cfg.runner.timeout_ms)
 	if not output then return true, Err("Cannot run `%s status`: %s", kind, err) end
 	if not output.status.success then
 		return true, Err("Cannot run `%s status`: %s", kind, Runner.error_text(output, err))
@@ -93,7 +93,7 @@ function M:fetch(job)
 	for _, rel in ipairs(queried) do if changed[rel] == nil then changed[rel] = "clean" end end
 	-- Refresh repository metadata together with status. The branch or SVN
 	-- location may have changed outside Yazi since the previous fetch.
-	local vcs_info = fetch_vcs_info(kind, root_str)
+	local vcs_info = fetch_vcs_info(kind, root_str, cfg)
 	State.remember(cwd_str, root_str, changed, vcs_info)
 	return false
 end

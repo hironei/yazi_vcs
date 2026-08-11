@@ -36,10 +36,9 @@ local function with_lock(root, operation, fn)
 		Notify.warn("Another VCS operation is already running for this repository.")
 		return
 	end
-	-- Keep the cleanup explicit. Wrapping the async operation in xpcall can
-	-- leave the task pending on Windows before the operation body starts.
-	local result = fn()
+	local ok, result = pcall(fn)
 	State.end_action(root)
+	if not ok then error(result, 0) end
 	return result
 end
 
@@ -61,7 +60,7 @@ local function validate_name(root, name, cfg)
 		Notify.error("Invalid branch name: %s", reason)
 		return false
 	end
-	local output, err = Runner.output({ command = "git", args = Git.check_ref_format_args(name), cwd = root })
+	local output, err = run(root, Git.check_ref_format_args(name), cfg)
 	if not output or not output.status.success then
 		fail("Branch name validation", output, err)
 		return false
@@ -71,7 +70,7 @@ end
 
 local function branch_data(root, cfg, include_remote)
 	if include_remote == nil then include_remote = cfg.git.branch.show_remote ~= false end
-	local output, err = Runner.output({ command = "git", args = Git.branch_list_args(include_remote), cwd = root })
+	local output, err = run(root, Git.branch_list_args(include_remote), cfg)
 	if not output or not output.status.success then
 		fail("Branch list", output, err)
 		return nil

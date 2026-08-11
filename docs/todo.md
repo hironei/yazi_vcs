@@ -13,6 +13,15 @@
 - [x] [#19](https://github.com/hironei/yazi_vcs/issues/19) — `discard.include_untracked`（同上、削除）
 - [x] [#20](https://github.com/hironei/yazi_vcs/issues/20) — `commit.default_scope`／`editor.wait`（未実装機能のため設定キーを削除）
 
+## バグ修正（レビュー検出分、2026-08-11）
+
+- [x] [#25](https://github.com/hironei/yazi_vcs/issues/25) — 配列型設定の再帰マージで既定引数が混入する
+- [x] [#26](https://github.com/hironei/yazi_vcs/issues/26) — Updateが認証入力を受け付けない
+- [x] [#27](https://github.com/hironei/yazi_vcs/issues/27) — status／Diff／Log／メタデータ取得がtimeoutを迂回する
+- [x] [#28](https://github.com/hironei/yazi_vcs/issues/28) — Lua例外時に操作ロック／terminal permitが残る
+- [x] [#29](https://github.com/hironei/yazi_vcs/issues/29) — 要件書が削除済み設定と現行動作を記載している
+- [x] [#30](https://github.com/hironei/yazi_vcs/issues/30) — as-built設計書が現行実装と一致しない
+
 ## 目視確認（ユーザー対応が必要）
 
 - [ ] 実際のYazi画面でPhase2〜4のキー操作と通知を確認する

@@ -133,7 +133,7 @@ require("vcs"):setup({
 })
 ```
 
-設定は既定値へ深くマージされるため、指定していない項目は既定値のままです。
+設定はマップについて既定値へ深くマージされるため、指定していない項目は既定値のままです。配列（`update.*`、`diff.*_cli`、`log.*_cli`、`editor.args`、`pager.args`）は指定した配列全体で置き換えられ、既定配列の末尾は引き継ぎません。
 
 ### 5. Yaziを再起動する
 
@@ -211,7 +211,7 @@ desc = "Git switch"
 | Yaziから呼び出すコマンド | Gitで実行されるコマンド | SVNで実行されるコマンド | 内容 |
 | --- | --- | --- | --- |
 | `plugin vcs -- status` | `git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching -- <paths>` | `svn status --xml --no-ignore --ignore-externals -- <paths>` | statusを再取得。通常はfetcherが自動実行 |
-| `plugin vcs -- update` | `git pull --ff-only` | `svn update` | fast-forwardのみのGit pull、またはSVN update |
+| `plugin vcs -- update` | `git pull --ff-only` | `svn update` | fast-forwardのみのGit pull、またはSVN update。認証入力が必要な場合はYaziを隠して端末入力を引き継ぎます |
 | `plugin vcs -- commit` | `git commit --file=<message> -- <selected paths>` | `svn commit --file=<message> -- <selected paths>` | 確認後、エディタでメッセージを入力してCommit |
 | `plugin vcs -- diff` | `git diff -- <targets>` | `svn diff -- <targets>` | CLI Diffをpagerで表示 |
 | `plugin vcs -- log` | `git log --decorate --oneline --graph -- <targets>` | `svn log -- <targets>` | CLI Logをpagerで表示 |
