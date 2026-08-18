@@ -890,15 +890,16 @@ svn revert --depth=infinity -- <directory>
 
 ### 14.4 安全確認
 
-Discardは必ず確認ダイアログを表示する。`ya.confirm{ pos, title, body }`を使用する。
+**【初版から変更】** 初版は`ya.confirm{ pos, title, body }`をファイルの場合の確認手段としていたが、`ya.confirm()`はWindows上のfunctional plugin taskで描画されず、タスクが保留状態のまま終了しないことを実測で確認した（Issue #22）。本改訂ではファイル・ディレクトリ再帰のいずれも`ya.input`によるタイプ確認へ統一する。
+
+Discardは必ず確認ダイアログを表示する。
 
 ファイルの場合：
 
 ```text
+Type "discard" to confirm:
 Discard local changes in 3 selected files?
 These changes cannot be restored by Git/SVN.
-
-[Confirm] [Cancel]
 ```
 
 ディレクトリ再帰の場合は`ya.input`によるタイプ確認を行う。
@@ -909,6 +910,8 @@ src/
 
 Type "revert" to continue:
 ```
+
+同じ理由により、Commit（§11）・Git Branch削除（§16.5）の確認ダイアログも`ya.confirm`ではなく`ya.input`によるタイプ確認で実装する（Issue #34）。
 
 ### 14.5 制約
 
