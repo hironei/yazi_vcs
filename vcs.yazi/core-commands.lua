@@ -55,6 +55,14 @@ function M.svn_log(paths)
 	return append_targets({ "log" }, paths)
 end
 
+function M.git_add(paths)
+	return append_targets({ "add" }, paths)
+end
+
+function M.svn_add(paths)
+	return append_targets({ "add" }, paths)
+end
+
 function M.git_discard(paths)
 	return append_targets({ "restore" }, paths)
 end

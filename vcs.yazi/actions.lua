@@ -258,6 +258,27 @@ function M.update()
 	end)
 end
 
+function M.add()
+	local cfg = Config.get()
+	local _, _, cwd = current_context()
+	local kind, root = context_root(cwd, cfg)
+	if not kind then return end
+	with_lock(root, "Add", function()
+		local paths = selected_targets(root)
+		if not paths or #paths == 0 then return Notify.warn("No VCS target selected.") end
+		local statuses = {}
+		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
+		local kept, excluded = Targets.exclude_ignored(paths, statuses)
+		if #excluded > 0 then Notify.warn("Ignored targets were excluded: " .. table.concat(excluded, ", ")) end
+		if #kept == 0 then return end
+		local fallback = kind == "git" and Commands.git_add(kept) or Commands.svn_add(kept)
+		local output, err = run(root, kind, fallback, cfg)
+		local operation = kind:gsub("^%l", string.upper) .. " add"
+		if not output or not output.status.success then return failure(operation, output, err) end
+		finish(root, operation, output)
+	end)
+end
+
 function M.commit()
 	local cfg = Config.get()
 	local _, _, cwd = current_context()
@@ -444,6 +465,7 @@ end
 function M.entry(action, args)
 	local handlers = {
 		update = M.update,
+		add = M.add,
 		commit = M.commit,
 		diff = function() return M.diff(named_external(args)) end,
 		log = function() return M.log(named_external(args)) end,

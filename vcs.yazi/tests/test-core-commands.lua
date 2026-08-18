@@ -11,4 +11,6 @@ return function(t)
 	t.deep_eq(c.git_log({}), { "--no-pager", "log", "--decorate", "--oneline", "--graph", "--all" }, "git repository log disables Git's pager")
 	t.deep_eq(c.svn_discard({ "src" }, true), { "revert", "--depth=infinity", "--", "src" }, "svn recursive discard")
 	t.deep_eq(c.git_discard({ "a.txt" }), { "restore", "--", "a.txt" }, "git discard")
+	t.deep_eq(c.git_add({ "a.txt", "b.txt" }), { "add", "--", "a.txt", "b.txt" }, "git add")
+	t.deep_eq(c.svn_add({ "日本語.txt" }), { "add", "--", "日本語.txt" }, "svn add keeps argument boundaries")
 end
