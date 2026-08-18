@@ -365,7 +365,7 @@ SVN working copyでは、次の操作は利用できません。Gitリポジト�
 - コマンドは引数配列で実行し、shell文字列連結を行いません。
 - Git Force Push、Force Delete、auto-stash、強制Switchは実行しません。
 - 未追跡ファイルを自動削除しません。
-- Commitには確認を表示し、Discardは`discard`、再帰的なDiscardは`revert`の入力で確認します。
+- Commitは`commit`、Branch削除は`delete`、Discardは`discard`、再帰的なDiscardは`revert`の入力で確認します。
 - Git Pushは認証入力の可能性があるため、通常のタイムアウトを適用せず、Yaziを隠して端末を引き継ぎます。
 - Git／SVNのCLI、エディタ、pager、外部Diff／Logツールは別途インストールしてPATHを通してください。
 - 実Yazi UI、認証入力、Windows GUI、WSL／Git Bashの実環境、SVN実CLIは別途確認が必要です。

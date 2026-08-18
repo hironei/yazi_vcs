@@ -187,7 +187,13 @@ local function branch_delete(root, cfg)
 	if not selected then return Notify.error("Branch not found: %s", name) end
 	if selected.remote then return Notify.error("Remote branches cannot be deleted by this action.") end
 	if selected.current then return Notify.error("The current branch cannot be deleted.") end
-	if not ya.confirm({ title = "Delete Git branch", body = "Delete local branch " .. name .. " safely?\n\nOnly `git branch -d` will be used." }) then return end
+	-- ya.confirm() does not render in the functional plugin task on
+	-- Windows and leaves the task pending indefinitely (see issue #22,
+	-- which hit the same problem in Discard); ya.input() is the
+	-- confirmed-working alternative.
+	local body = "Delete local branch " .. name .. " safely?\n\nOnly `git branch -d` will be used."
+	local value, event = ya.input({ title = 'Type "delete" to confirm:\n' .. body, pos = { "center", w = 60 } })
+	if event ~= 1 or value ~= "delete" then return end
 	local output, err = run(root, Git.delete_branch_args(name), cfg)
 	if not output or not output.status.success then return fail("Branch delete", output, err) end
 	refresh(root, "Deleted branch: " .. name)

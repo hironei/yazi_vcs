@@ -22,9 +22,14 @@
 - [x] [#29](https://github.com/hironei/yazi_vcs/issues/29) — 要件書が削除済み設定と現行動作を記載している
 - [x] [#30](https://github.com/hironei/yazi_vcs/issues/30) — as-built設計書が現行実装と一致しない
 
+## バグ修正（レビュー検出分、2026-08-18）
+
+- [x] [#34](https://github.com/hironei/yazi_vcs/issues/34) — Commitの`ya.confirm()`がWindows上のfunctional plugin taskで描画されずタスクが保留状態になる（#22と同種）。Commit・Git Branch削除の確認を`ya.input()`によるタイプ確認へ統一
+
 ## 目視確認（ユーザー対応が必要）
 
 - [ ] 実際のYazi画面でPhase2〜4のキー操作と通知を確認する
+- [ ] Windows実Yazi上で`g v c`（Commit）と`g v b` → deleteの確認ダイアログ・タスク終了を確認する（#34の修正確認）
 - [ ] Git認証が必要なPushをWindows 11のGit Bash／WSLで確認する
 - [ ] Git Branch入力UIとpager表示を実Yaziで確認する
 - [ ] 外部Diff／LogのTUIとWindows GUI起動を実環境で確認する

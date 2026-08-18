@@ -290,7 +290,12 @@ function M.commit()
 		local mode = kind == "git" and cfg.commit.git_mode or nil
 		local body = "Commit " .. #paths .. " target(s)?\n\n" .. Targets.describe(paths)
 		if kind == "git" and mode ~= "staged" then body = body .. "\n\nSelected paths are staged implicitly by Git." end
-		if not ya.confirm({ title = "VCS Commit", body = body }) then return end
+		-- ya.confirm() does not render in the functional plugin task on
+		-- Windows and leaves the task pending indefinitely (see issue #22,
+		-- which hit the same problem in Discard); ya.input() is the
+		-- confirmed-working alternative.
+		local value, event = ya.input({ title = 'Type "commit" to confirm:\n' .. body, pos = { "center", w = 60 } })
+		if event ~= 1 or value ~= "commit" then return Notify.info("Commit cancelled.") end
 		local message_file, temp_err = temp_file("")
 		if not message_file then return Notify.error("Cannot create commit message file: %s", temp_err) end
 		local content, edit_err = edit_message(message_file, cfg)
