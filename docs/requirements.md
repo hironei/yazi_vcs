@@ -654,7 +654,7 @@ git commit --file=<message-file>
 
 将来拡張として以下を分離可能とする。
 
-- Stage selected files（`git add`のみ）
+- Stage selected files（`git add`のみ）— `plugin vcs -- add`として実装済み（`git add -- <targets>`／`svn add -- <targets>`。ignored対象は除外し通知する。確認は不要）
 - Unstage selected files
 
 ### 11.3 SVN

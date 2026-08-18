@@ -101,6 +101,10 @@ require("vcs"):setup()
 
 ```toml
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "a" ]
+run = "plugin vcs -- add"
+desc = "VCS add"
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
@@ -126,7 +130,7 @@ run = "plugin vcs -- copy-url-revision"
 desc = "Copy VCS URL with revision"
 ```
 
-既存の`update`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`copy-url`は選択対象（複数選択時は先頭）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
+既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時はホバー中の項目、それも無ければ現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。`copy-url`は選択対象（複数選択時は先頭）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
 
 ## 外部Diff／Log設定
 

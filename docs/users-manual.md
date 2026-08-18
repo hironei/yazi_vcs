@@ -155,6 +155,11 @@ run = "plugin vcs -- update"
 desc = "VCS update"
 
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "a" ]
+run = "plugin vcs -- add"
+desc = "VCS add"
+
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "c" ]
 run = "plugin vcs -- commit"
 desc = "VCS commit"
@@ -212,6 +217,7 @@ desc = "Git switch"
 | --- | --- | --- | --- |
 | `plugin vcs -- status` | `git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching -- <paths>` | `svn status --xml --no-ignore --ignore-externals -- <paths>` | statusを再取得。通常はfetcherが自動実行 |
 | `plugin vcs -- update` | `git pull --ff-only` | `svn update` | fast-forwardのみのGit pull、またはSVN update。認証入力が必要な場合はYaziを隠して端末入力を引き継ぎます |
+| `plugin vcs -- add` | `git add -- <targets>` | `svn add -- <targets>` | 選択対象をバージョン管理に追加（Gitはstageも兼ねる）。確認不要 |
 | `plugin vcs -- commit` | `git commit --file=<message> -- <selected paths>` | `svn commit --file=<message> -- <selected paths>` | 確認後、エディタでメッセージを入力してCommit |
 | `plugin vcs -- diff` | `git diff -- <targets>` | `svn diff -- <targets>` | CLI Diffをpagerで表示 |
 | `plugin vcs -- log` | `git log --decorate --oneline --graph -- <targets>` | `svn log -- <targets>` | CLI Logをpagerで表示 |
@@ -220,6 +226,8 @@ desc = "Git switch"
 Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みの内容をCommitします。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
 
 Discardでは未追跡ファイル・ignoredファイルを対象外とします。通常のDiscardは`discard`、ディレクトリを再帰的に破棄する場合は、既定で`revert`という文字の入力が必要です。
+
+Addではignoredファイルを対象外とします（`git add`はignoredファイルを`-f`無しでは受け付けず、`svn add`は既定でsvn:ignore対象を無視するため）。除外があった場合は通知します。
 
 `log.git_cli`と`log.svn_cli`は、`{targets}`プレースホルダーを対象パスへ展開して実行します。対象を指定しない場合の表示範囲は、設定したCLIコマンドの引数に従います。
 

@@ -59,6 +59,25 @@ function M.exclude_untracked(relative_paths, statuses)
 	return kept, excluded
 end
 
+--- Remove targets known to be ignored. `git add` refuses ignored paths
+--- without `-f`, and SVN add skips svn:ignore'd paths by default; both
+--- cases are reported to the user instead of silently failing/no-oping.
+---@param relative_paths string[]
+---@param statuses table<string,string>|nil
+---@return string[] kept
+---@return string[] excluded
+function M.exclude_ignored(relative_paths, statuses)
+	local kept, excluded = {}, {}
+	for _, path in ipairs(relative_paths) do
+		if statuses and (statuses[path] == "ignored" or statuses[path] == "excluded") then
+			excluded[#excluded + 1] = path
+		else
+			kept[#kept + 1] = path
+		end
+	end
+	return kept, excluded
+end
+
 --- Render a compact, newline-separated target list for confirmation dialogs.
 ---@param paths string[]
 ---@return string
