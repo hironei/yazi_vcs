@@ -15,4 +15,4 @@ Phase 4の操作:
 
 SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-wrapper.sh`](../examples/svn-difft-wrapper.sh)を参照してください。
 
-既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。
+VCS操作の対象は、selectedがあればselected、なければcwdです。hoveredだけでは対象を変更しません。cwdがVCS外でも、VCSリポジトリのディレクトリをselectedすればそのリポジトリを操作できます。異なるリポジトリを複数selectedした操作は拒否します。未selectedのAdd／Commit／Discardはcwd配下を広く対象にし得るため、対象範囲を表示してtyped confirmationを要求します。既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。

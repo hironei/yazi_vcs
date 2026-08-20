@@ -1,5 +1,12 @@
 # 完了記録
 
+## 2026-08-20 — VCS操作のselected／cwd scope統一（Issue #36）
+
+- VCS操作開始時のselected／cwd／file metadata snapshotと、`selected > cwd`の共通scope／repository resolverを追加
+- hoveredを操作対象から除外し、selected pathからのVCS root解決、複数repository／Git-SVN／VCS外混在の拒否、repository rootのDiff／Log scopeを実装
+- cwd scopeのAdd／Commit／Discardに対象範囲を明示するtyped confirmationを追加し、既存のforce操作禁止・未追跡削除禁止を維持
+- requirements、design、README、users manual、TODOを現行仕様へ更新。純粋Luaテストは179 passed、全体統合テストはWindows Luaの一時ディレクトリ環境要因で未完了
+
 ## 2026-08-11 — Review findings #25〜#30 修正
 
 - `config.lua`: マップは深いマージ、配列は指定値で全体置換する設定マージへ修正。空配列と短いコマンド配列の回帰テストを追加

@@ -64,10 +64,6 @@ M.end_action = ya.sync(function(state, root)
 	state.actions[root] = nil
 end)
 
-M.current_url = ya.sync(function()
-	return cx.active.current.cwd
-end)
-
 M.root_of = ya.sync(function(state, cwd)
 	state.dirs = state.dirs or {}
 	return state.dirs[cwd]

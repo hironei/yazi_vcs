@@ -4,23 +4,65 @@ local Path = require(".core-path")
 
 local M = {}
 
---- Choose selected files first, then the hovered file, then the current cwd.
+--- Choose selected files first, then the current cwd.
 ---@param selected string[]|nil
----@param hovered string|nil
 ---@param cwd string|nil
 ---@return string[] paths
----@return "selected"|"hovered"|"current"|nil scope
-function M.choose(selected, hovered, cwd)
+---@return "selected"|"cwd"|nil source
+---@return boolean explicit
+function M.choose(selected, cwd)
 	if selected and #selected > 0 then
-		return selected, "selected"
-	end
-	if hovered then
-		return { hovered }, "hovered"
+		return selected, "selected", true
 	end
 	if cwd then
-		return { cwd }, "current"
+		return { cwd }, "cwd", false
 	end
-	return {}, nil
+	return {}, nil, false
+end
+
+--- Resolve one operation's path and repository scope from a context snapshot.
+--- `detect` receives the directory from which VCS root discovery should start.
+---@param selected string[]|nil
+---@param cwd string|nil
+---@param info table<string,boolean>|nil
+---@param detect fun(start_path:string): "git"|"svn"|nil, string?
+---@return table? scope
+---@return table? reason
+function M.resolve(selected, cwd, info, detect)
+	local absolute, source, explicit = M.choose(selected, cwd)
+	if #absolute == 0 then return nil, { code = "no-target" } end
+
+	local kind, root
+	for _, path in ipairs(absolute) do
+		local start = path
+		if source == "selected" and not (info and info[path]) then start = Path.parent(path) end
+		local found_kind, found_root = detect(start)
+		if not found_kind or not found_root then
+			return nil, { code = #absolute > 1 and "mixed" or "not-found", path = path }
+		end
+		if not kind then
+			kind, root = found_kind, found_root
+		elseif kind ~= found_kind or not Path.same(root, found_root) then
+			return nil, { code = "mixed", path = path }
+		end
+	end
+
+	local relative, invalid = M.relative(absolute, root)
+	if not relative then return nil, { code = "outside", path = invalid } end
+	local repository = false
+	for _, path in ipairs(relative) do
+		if path == "." then repository = true end
+	end
+	return {
+		absolute = absolute,
+		paths = relative,
+		source = source,
+		explicit = explicit,
+		kind = kind,
+		root = root,
+		repository = repository,
+		info = info or {},
+	}, nil
 end
 
 --- Convert absolute paths to root-relative CLI paths. The root itself is '.'.

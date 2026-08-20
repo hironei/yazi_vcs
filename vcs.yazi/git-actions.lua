@@ -1,26 +1,34 @@
 -- git-actions.lua
 -- Phase 3 Git-only operations: push, branch management, and switch.
 local Config = require(".config")
+local Context = require(".core-context")
 local Detector = require(".core-detector")
 local Git = require(".core-git")
 local Notify = require(".core-notify")
 local Runner = require(".core-runner")
 local State = require(".core-state")
+local Targets = require(".core-targets")
 
 local M = {}
 
-local current_cwd = ya.sync(function()
-	return tostring(cx.active.current.cwd)
-end)
-
 local function root_for_git(cfg)
-	local cwd = current_cwd()
-	local kind, root = Detector.detect(Url(cwd), cfg.detection.priority)
-	if kind ~= "git" then
+	local context = Context.snapshot()
+	local scope, reason = Targets.resolve(context.selected, context.cwd, context.info, function(start)
+		return Detector.detect(Url(start), cfg.detection.priority)
+	end)
+	if not scope then
+		if reason and reason.code == "mixed" then
+			Notify.error("Selected targets do not belong to the same Git or SVN working copy.")
+		else
+			Notify.warn("Not inside a Git or SVN working copy.")
+		end
+		return nil
+	end
+	if scope.kind ~= "git" then
 		Notify.warn("This Git-only operation requires a Git repository.")
 		return nil
 	end
-	return root
+	return scope
 end
 
 local function run(root, args, cfg)
@@ -106,8 +114,9 @@ end
 
 function M.push()
 	local cfg = Config.get()
-	local root = root_for_git(cfg)
-	if not root then return end
+	local scope = root_for_git(cfg)
+	if not scope then return end
+	local root = scope.root
 	with_lock(root, "Git push", function()
 		local branch_output, branch_err = run(root, Git.current_branch_args(), cfg)
 		local branch = branch_output and branch_output.status.success and branch_output.stdout:gsub("%s+$", "") or ""
@@ -201,8 +210,9 @@ end
 
 function M.branch(subaction)
 	local cfg = Config.get()
-	local root = root_for_git(cfg)
-	if not root then return end
+	local scope = root_for_git(cfg)
+	if not scope then return end
+	local root = scope.root
 	with_lock(root, "Git branch", function()
 		local action = subaction or ask("Branch action (list/create/create-switch/rename/delete):")
 		if action == "list" then return branch_list(root, cfg) end
@@ -221,8 +231,9 @@ end
 
 function M.switch()
 	local cfg = Config.get()
-	local root = root_for_git(cfg)
-	if not root then return end
+	local scope = root_for_git(cfg)
+	if not scope then return end
+	local root = scope.root
 	with_lock(root, "Git switch", function()
 		local name = ask("Branch or remote branch to switch to:")
 		if not name or name == "" then return end

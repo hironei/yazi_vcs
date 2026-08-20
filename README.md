@@ -89,7 +89,7 @@ group = "vcs"
 require("vcs"):setup()
 ```
 
-これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。status bar右側には、Gitなら`(branch-name)`、SVNなら現在ホバー中のファイル／ディレクトリ（ホバー対象がなければ現在のcwd）のURLを`(svn: https://host/svn/base_url/trunk/file.txt)`のように表示します。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
+これで既定値が有効になります。既定のstatus取得は表示中のファイルだけを対象にし、Gitへ`--no-optional-locks`を渡します。status bar右側には、Gitなら`(branch-name)`、SVNなら現在ホバー中のファイル／ディレクトリ（ホバー対象がなければ現在のcwd）のURLを`(svn: https://host/svn/base_url/trunk/file.txt)`のように表示します。VCS操作の対象は、選択ありなら選択した項目、選択なしなら現在のディレクトリです。カーソル位置（hover）だけでは操作対象は変わりません。cwdがVCS外でも、VCSリポジトリのディレクトリを選択すればそのリポジトリを操作できます。外部Diff／Logなどを使う場合の追加設定は、後述の[外部Diff／Log設定](#外部difflog設定)に記載しています。
 
 ### 3. Yaziを再起動する
 
@@ -130,7 +130,7 @@ run = "plugin vcs -- copy-url-revision"
 desc = "Copy VCS URL with revision"
 ```
 
-既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時はホバー中の項目、それも無ければ現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。`copy-url`は選択対象（複数選択時は先頭）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
+既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時は現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。未選択のcwd scopeでAddを実行する場合は、配下を広く追加するため`add`の入力確認が必要です。`copy-url`は選択対象（複数選択時は先頭、未選択時はcwd）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
 
 ## 外部Diff／Log設定
 
