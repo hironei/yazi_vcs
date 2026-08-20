@@ -1,7 +1,7 @@
 # Yazi向け Git／SVN 統合VCSプラグイン 要件定義
 
 - 対象Yaziバージョン：26.5.6 以降
-- 最終更新：2026-08-11
+- 最終更新：2026-08-20
 
 ---
 
@@ -173,7 +173,9 @@ vcs.yazi/
 ├── config.lua            -- 既定値とユーザー設定のマージ
 ├── core-detector.lua     -- VCS種別・ルート検出
 ├── core-runner.lua       -- 外部コマンド実行ラッパー
-├── core-targets.lua      -- 操作対象ファイル決定
+├── core-context.lua      -- 操作開始時のselected／cwd／metadata snapshot
+├── core-scope.lua        -- 共通scope解決と失敗通知
+├── core-targets.lua      -- 操作scopeと対象ファイル決定
 ├── core-external.lua     -- エディタ／pager／外部ツール起動
 ├── core-path.lua         -- パス正規化・変換
 ├── core-notify.lua       -- 通知整形
@@ -301,19 +303,37 @@ detection = {
 
 ---
 
-## 7. 対象ファイル決定
+## 7. VCS操作のScopeと対象決定
 
-操作対象は次の優先順位で決定する。
+VCS操作は、操作の危険性によらず次の共通ルールで対象を決定する。
 
-1. Yaziで選択中の複数ファイル
-2. Hover中のファイル
-3. カレントディレクトリ
+1. selectedが存在する場合はselected全件を明示的な操作対象とする（`source = "selected"`, `explicit = true`）
+2. selectedが存在しない場合は現在のディレクトリ（cwd）を対象とする（`source = "cwd"`, `explicit = false`）
+3. hoveredはVCS操作対象の決定に使用しない
 
-操作対象の選択優先順位は全操作で固定する。選択中の項目（複数選択時は全件）を優先し、選択がなければhover中の項目、最後にカレントディレクトリを使用する。操作ごとのscope設定は初期リリースの対象外とする。
+操作開始時にselected、cwd、表示中ファイルのfile/directory metadataを1回取得し、同じsnapshotをroot解決、path変換、確認表示、コマンド構築へ渡す。カーソル位置はナビゲーション／表示状態であり、明示的な操作対象ではない。
 
-- 対象パスは必ずVCSルート配下であることを検証する
-- 空白、日本語、記号を含むパスを正しく処理する
-- シェル文字列連結ではなく、必ず`Command:arg()`へ引数配列として渡す
+### 7.1 Repository Context Resolution
+
+Path-level operation（Add、Commit、Diff、Log、Discard、Copy URL）はscopeのpathをroot-relativeへ変換する。selected pathがfileならparent、directoryなら自身をVCS detectorの開始点とする。selectedなしではcwdを開始点とする。
+
+Repository-level operation（Update、Git Push、Git Branch、Git Switch、Status refresh）はpathをCLI targetにせず、同じscopeから所属repository rootを解決してrootを作業ディレクトリとする。cwdがVCS外でも、repository内のdirectory/fileをselectedすればそのrepository contextを使用できる。
+
+複数selected時は全pathが同一のGit repositoryまたは同一のSVN working copyに属することを必須とする。異なるroot、Git/SVN混在、VCS管理外path混在は拒否し、最初の1件だけを暗黙に処理してはならない。
+
+root-relative pathが`.`になったscopeはrepository scopeとする。repository scopeのGit Logは`Commands.git_log({})`相当、Diffは`git diff`相当とし、`.`をpath filterとして渡さない。SVNにも同じscope semanticsを適用する。通常path scopeでは従来どおり対象pathを渡す。
+
+Copy URLはselected時にselected先頭、未selected時にcwdを使う。外部Diff／LogもCLIと同じscopeを使い、repository scopeでは`{targets}`へ`.`を強制しない。
+
+対象パスは必ずVCSルート配下であることを検証する。空白、日本語、記号を含むパスを正しく処理し、シェル文字列連結ではなく必ず`Command:arg()`へ引数配列として渡す。
+
+### 7.2 Risk Policy
+
+Target ResolutionとRisk Policyは分離する。
+
+- Level 0（Read-only）: Diff、Log、Copy URL、Copy URL + revision、Status refresh、Branch list。追加確認不要。
+- Level 1（Mutating）: Add、Update、Push、Switch、Branch create/rename。既存の安全機構を維持する。Addはselected scopeなら確認不要、cwd scopeなら配下を広く追加し得るため対象ディレクトリを表示して`add`のtyped confirmationを要求する。
+- Level 2（Destructive/Broad Mutation）: Commit、Discard、Branch delete。対象範囲を明示し、必ずtyped confirmationを要求する。Commit／Discardのcwd scopeでは、現在のディレクトリ配下を対象とすることと、広範囲／不可逆になり得ることを確認文へ含める。
 
 ---
 
@@ -582,7 +602,7 @@ update = {
 svn update
 ```
 
-対象がファイルまたは選択項目の場合も、設定により対象指定を許容する。既定では作業コピールートまたはカレントディレクトリを更新する。
+selectedがある場合はselected pathから所属repositoryを解決し、selectedがない場合はcwdから所属repositoryを解決する。Update自体はpath targetを渡さず、解決した作業コピールート全体を更新する。
 
 ### 10.4 実行後
 
@@ -631,7 +651,7 @@ $ git commit --file=/tmp/m.txt -- t.txt
 本改訂では**path モードを既定とする**。理由：
 
 - SVNのcommitは元来パス指定であり、pathモードを既定とすることで §2「GitとSVNで可能な限り操作感を統一する」を満たせる
-- stage対象は「ユーザーがYazi上で選択し、確認ダイアログに列挙されたパス」に限定されるため、暗黙的で予期しない挙動にはならない
+- stage対象は、ユーザーがYazi上で選択したpath、または確認ダイアログに明示したcwd scopeに限定されるため、暗黙的で予期しない挙動にはならない
 - pathモードは**index上の他のstage済みファイルをコミットしない**ため、作業中のstageを巻き込む事故は発生しない
 
 既定（`commit.git_mode = "paths"`）：
@@ -648,13 +668,13 @@ git commit --file=<message-file>
 
 要件：
 
-- 確認画面に「対象パスは自動的にstageされる」旨を明示する
+- 確認画面に「対象パスは自動的にstageされる」旨を明示する。cwd scopeでは対象ディレクトリ配下が対象になることも明示する
 - `git_mode = "staged"`では対象パスを渡さず、stage済みの内容のみをコミットする
 - 未追跡ファイルをpathspecに含めた場合、gitは`pathspec did not match`で失敗する。この場合は事前に検出し、「未追跡ファイルは`git add`が必要」と通知する
 
 将来拡張として以下を分離可能とする。
 
-- Stage selected files（`git add`のみ）— `plugin vcs -- add`として実装済み（`git add -- <targets>`／`svn add -- <targets>`。ignored対象は除外し通知する。確認は不要）
+- Stage selected files（`git add`のみ）— `plugin vcs -- add`として実装済み（`git add -- <targets>`／`svn add -- <targets>`。ignored対象は除外し通知する。selected scopeでは確認不要、cwd scopeでは`add`確認を行う）
 - Unstage selected files
 
 ### 11.3 SVN
@@ -718,9 +738,13 @@ editor = {
 
 ### 12.2 Git CLI
 
+通常のpath scopeでは次を実行する。
+
 ```bash
 git diff -- <targets...>
 ```
+
+repository rootまたはroot cwdのrepository scopeではpath filterを付けず、`git diff`を実行する。SVNも同じscope semanticsとする。
 
 必要に応じて設定でstaged diffを追加可能とする。
 
@@ -732,9 +756,13 @@ git diff --cached -- <targets...>
 
 ### 12.3 SVN CLI
 
+通常のpath scopeでは次を実行する。
+
 ```bash
 svn diff -- <targets...>
 ```
+
+repository scopeでは`svn diff`を実行する。
 
 ### 12.4 pager
 
@@ -813,7 +841,7 @@ git log --decorate --oneline --graph -- <targets...>
 svn log -- <targets...>
 ```
 
-対象未指定の場合はカレントディレクトリまたは作業コピールートを対象とする。
+repository scopeではpath filterを付けず、カレントディレクトリまたは作業コピールート全体を対象とする。通常のpath scopeでは対象pathを渡す。
 
 ### 13.4 外部ログビューア
 
@@ -1316,7 +1344,6 @@ require("vcs"):setup({
     },
 
     discard = {
-        confirm = true,
         recursive_confirm_text = "revert",
     },
 
@@ -1349,7 +1376,7 @@ require("vcs"):setup({
 - `log.git_cli_all`を追加（§13.2）
 - `runner.timeout_ms`を追加（§21.1）
 - 配列型の設定値は深いマージではなく、ユーザー指定値で全体を置換する
-- `commit.default_scope`、`editor.wait`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
+- `commit.default_scope`、`editor.wait`、`discard.confirm`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
 
 ---
 
@@ -1538,7 +1565,7 @@ Commit, discard, or stash the changes before switching.
 - 状態優先度の適用
 - ディレクトリ状態集約（ignoredの除外を含む）
 - Git／SVNルート検出（`.git`がファイルの場合＝worktree／submoduleを含む）
-- 対象ファイル選択（選択／hover／カレント）
+- Scope解決（selected／cwd、hover無視、explicit、repository境界、root-relative `.`）
 - VCSルート外パスの拒否
 - パス正規化
 - コマンド引数構築
@@ -1705,7 +1732,7 @@ READMEに以下を記載する。
 3. ignoredを含む §8.2 の全状態を表示できる
 4. renameされたファイルの状態を正しく解析・表示できる
 5. ディレクトリへ配下の状態を集約表示できる
-6. 選択ファイルに対してCommit、Diff、Log、Discardを実行できる
+6. selected path、またはselectedがない場合のcwdに対してCommit、Diff、Log、Discardを実行できる
 7. Gitで`git pull --ff-only`を実行できる
 8. SVNで`svn update`を実行できる
 9. Commitメッセージを任意エディタで編集できる
@@ -1730,6 +1757,17 @@ READMEに以下を記載する。
 28. Updateが認証入力を要求する場合に対話経路で入力できる
 29. 非対話型status／メタデータ／Diff／Log／Branch処理が`runner.timeout_ms`で終了する
 30. 操作本体または対話コマンドのLuaエラー後も、同一rootの操作とYazi画面が復帰する
+
+Issue #36 の追加受入条件：
+
+31. 全VCS操作のinput sourceが`selected > cwd`に統一され、hoveredだけでは対象が変わらない
+32. selected／cwdと`explicit`を同一context snapshotから後段へ渡せる
+33. selected file/directoryから所属VCS rootを解決できる
+34. cwdがVCS外でも、repository内pathをselectedすればrepository-level operationを実行できる
+35. 複数selectedが異なるrepository、Git/SVN、またはVCS外を含む場合に操作を拒否する
+36. root-relative `.` のDiff／Logがrepository-wideになり、`.`をpath filterとして渡さない
+37. 未selected Add、Commit、Discardがcwd scopeを明示し、Risk Policyに従って確認する
+38. Update、Push、Branch、Switch、Status refreshが同じrepository context resolutionを使用する
 
 ---
 

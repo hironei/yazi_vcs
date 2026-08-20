@@ -25,6 +25,7 @@
 ## バグ修正（レビュー検出分、2026-08-18）
 
 - [x] [#34](https://github.com/hironei/yazi_vcs/issues/34) — Commitの`ya.confirm()`がWindows上のfunctional plugin taskで描画されずタスクが保留状態になる（#22と同種）。Commit・Git Branch削除の確認を`ya.input()`によるタイプ確認へ統一
+- [x] [#36](https://github.com/hironei/yazi_vcs/issues/36) — VCS操作対象を`selected > cwd`へ統一し、repository境界検証とcwd scopeのRisk Policyを導入する
 
 ## 目視確認（ユーザー対応が必要）
 

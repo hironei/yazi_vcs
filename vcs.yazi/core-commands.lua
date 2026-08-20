@@ -3,6 +3,7 @@
 local M = {}
 
 local function append_targets(args, paths)
+	if not paths or #paths == 0 then return args end
 	args[#args + 1] = "--"
 	for _, path in ipairs(paths or {}) do
 		args[#args + 1] = path

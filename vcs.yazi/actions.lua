@@ -1,10 +1,10 @@
 -- actions.lua
 -- Phase 2 common VCS operations plus Phase 4 external viewers.
 local Config = require(".config")
-local Detector = require(".core-detector")
 local External = require(".core-external")
 local Notify = require(".core-notify")
 local Runner = require(".core-runner")
+local Scope = require(".core-scope")
 local State = require(".core-state")
 local Targets = require(".core-targets")
 local Commands = require(".core-commands")
@@ -20,41 +20,8 @@ local function trace(stage)
 	end
 end
 
-local current_context = ya.sync(function()
-	local tab, selected, info = cx.active, {}, {}
-	for _, url in pairs(tab.selected) do
-		local path = tostring(url)
-		selected[#selected + 1] = path
-		info[path] = false
-	end
-	for i = 1, #tab.current.files do
-		local file = tab.current.files[i]
-		if file then info[tostring(file.url)] = file.cha and file.cha.is_dir or false end
-	end
-	local hovered = tab.current.hovered
-	local hovered_path = hovered and tostring(hovered.url) or nil
-	if hovered_path then info[hovered_path] = hovered.cha and hovered.cha.is_dir or false end
-	return selected, hovered_path, tostring(tab.current.cwd), info
-end)
-
-local function context_root(cwd, cfg)
-	local kind, root = Detector.detect(Url(cwd), cfg.detection.priority)
-	if not kind then
-		Notify.warn("Not inside a Git or SVN working copy.")
-		return nil
-	end
-	return kind, root
-end
-
-local function selected_targets(root)
-	local selected, hovered, cwd, info = current_context()
-	local absolute, scope = Targets.choose(selected, hovered, cwd)
-	local relative, invalid = Targets.relative(absolute, root)
-	if not relative then
-		Notify.error("Refusing VCS operation outside the repository: %s", invalid)
-		return nil
-	end
-	return relative, scope, info, absolute
+local function resolve_scope(cfg)
+	return Scope.resolve_or_notify(cfg)
 end
 
 local function run(root, command, args, cfg)
@@ -70,14 +37,22 @@ local function argv(configured, fallback_command, fallback_args)
 	return configured[1], args
 end
 
-local function expand_template(template, paths)
+local function expand_template(template, paths, repository_scope)
 	local expanded = {}
-	for _, token in ipairs(template or {}) do
+	local i = 1
+	while i <= #(template or {}) do
+		local token = template[i]
+		if repository_scope and token == "--" and template[i + 1] == "{targets}" then
+			i = i + 2
+			goto continue
+		end
 		if token == "{targets}" then
 			for _, path in ipairs(paths or {}) do expanded[#expanded + 1] = path end
 		else
 			expanded[#expanded + 1] = token
 		end
+		i = i + 1
+		::continue::
 	end
 	return expanded
 end
@@ -200,7 +175,7 @@ local function convert_external_path(path, style, environment, root, cfg)
 	return path
 end
 
-local function external_context(root, absolute, cfg, spec)
+local function external_context(root, absolute, cfg, spec, repository_scope)
 	local environment = External.environment({
 		WSL_INTEROP = os.getenv("WSL_INTEROP"),
 		WSL_DISTRO_NAME = os.getenv("WSL_DISTRO_NAME"),
@@ -211,16 +186,18 @@ local function external_context(root, absolute, cfg, spec)
 	}, ya.target_family())
 	local style = External.path_style(spec.path_style or (cfg.path and cfg.path.external_style), environment)
 	local root_path = convert_external_path(root, style, environment, root, cfg)
+	local file = absolute and absolute[1] and convert_external_path(absolute[1], style, environment, root, cfg) or root_path
 	local targets = {}
-	for _, path in ipairs(absolute or {}) do targets[#targets + 1] = convert_external_path(path, style, environment, root, cfg) end
-	local file = targets[1] or root_path
+	if not repository_scope then
+		for _, path in ipairs(absolute or {}) do targets[#targets + 1] = convert_external_path(path, style, environment, root, cfg) end
+	end
 	return { root = root_path, file = file, targets = targets, revision = spec.revision or "" }
 end
 
-local function run_external(root, operation, spec, absolute, cfg)
+local function run_external(root, operation, spec, absolute, cfg, repository_scope)
 	local valid, reason = External.validate(spec)
 	if not valid then return Notify.error("%s is not configured: %s", operation, reason) end
-	local context = external_context(root, absolute, cfg, spec)
+	local context = external_context(root, absolute, cfg, spec, repository_scope)
 	local args, expand_err = External.expand_args(spec.args, context)
 	if not args then return Notify.error("%s configuration is invalid: %s", operation, expand_err) end
 	trace("external: " .. operation .. " command=" .. tostring(spec.command) .. " cwd=" .. tostring(root) .. " args=" .. table.concat(args, " | "))
@@ -245,9 +222,9 @@ end
 
 function M.update()
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 	with_lock(root, "Update", function()
 		local fallback = kind == "git" and Commands.git_update() or Commands.svn_update(nil)
 		local command, args = argv(cfg.update and cfg.update[kind], kind, fallback)
@@ -260,12 +237,19 @@ end
 
 function M.add()
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 	with_lock(root, "Add", function()
-		local paths = selected_targets(root)
+		local paths = scope.paths
 		if not paths or #paths == 0 then return Notify.warn("No VCS target selected.") end
+		if not scope.explicit then
+			local value, event = ya.input({
+				title = 'Type "add" to confirm:\nAdd all applicable files under:\n\n' .. scope.absolute[1],
+				pos = { "center", w = 60 },
+			})
+			if event ~= 1 or value ~= "add" then return Notify.info("Add cancelled.") end
+		end
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
 		local kept, excluded = Targets.exclude_ignored(paths, statuses)
@@ -281,14 +265,21 @@ end
 
 function M.commit()
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 	with_lock(root, "Commit", function()
-		local paths = selected_targets(root)
+		local paths = scope.paths
 		if not paths or #paths == 0 then return Notify.warn("No VCS target selected.") end
 		local mode = kind == "git" and cfg.commit.git_mode or nil
-		local body = "Commit " .. #paths .. " target(s)?\n\n" .. Targets.describe(paths)
+		local body
+		if scope.explicit then
+			body = "Commit " .. #paths .. " target(s)?\n\n" .. Targets.describe(paths)
+		else
+			body = "Commit current directory scope:\n\n" .. scope.absolute[1]
+			.. "\n\nThis may include multiple changed files under this directory."
+			if scope.repository then body = body .. "\nThis is the repository root, so the scope includes the entire repository." end
+		end
 		if kind == "git" and mode ~= "staged" then body = body .. "\n\nSelected paths are staged implicitly by Git." end
 		-- ya.confirm() does not render in the functional plugin task on
 		-- Windows and leaves the task pending indefinitely (see issue #22,
@@ -318,27 +309,31 @@ end
 
 local function view_operation(operation, config_section, kind_builder, external)
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 	with_lock(root, operation, function()
-		local paths, _, _, absolute = selected_targets(root)
+		local paths, absolute = scope.paths, scope.absolute
 		if not paths then return end
+		local command_paths = scope.repository and {} or paths
 		local section = cfg[config_section] or {}
 		if external then
 			if config_section == "diff" then
-				local changed, output, err = has_diff(root, kind, paths, cfg)
+				local changed, output, err = has_diff(root, kind, command_paths, cfg)
 				if changed == nil then return failure(operation .. " check", output, err) end
-				if not changed then return Notify.info("%s: no differences for selected targets.", operation) end
+				if not changed then return Notify.info("%s: no differences for the selected scope.", operation) end
 			end
-			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg)
+			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg, scope.repository)
 		end
 		local configured = section[kind .. "_cli"]
-		local fallback = kind_builder(kind, paths)
+		if scope.repository and config_section == "log" and kind == "git" and section.git_cli_all then
+			configured = section.git_cli_all
+		end
+		local fallback = kind_builder(kind, command_paths)
 		local command, args
 		if configured then
 			command, args = argv(configured, kind, fallback)
-			args = expand_template(args, paths)
+			args = expand_template(args, command_paths, scope.repository)
 		else
 			command, args = kind, fallback
 		end
@@ -367,12 +362,12 @@ end
 
 function M.discard()
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 	trace("discard:start kind=" .. kind .. " root=" .. tostring(root))
 	with_lock(root, "Discard", function()
-		local paths, _, info, absolute = selected_targets(root)
+		local paths, info, absolute = scope.paths, scope.info, scope.absolute
 		if not paths then return end
 		trace("discard:targets=" .. table.concat(paths, " | "))
 		local abs_by_rel = {}
@@ -385,13 +380,19 @@ function M.discard()
 		if #kept == 0 then return end
 		local recursive = false
 		for _, path in ipairs(kept) do
-			if info[abs_by_rel[path]] then recursive = true end
+			if not scope.explicit or info[abs_by_rel[path]] then recursive = true end
 		end
-		local body = "Discard local changes?\n\n" .. Targets.describe(kept)
+		local body
+		if scope.explicit then
+			body = "Discard local changes?\n\n" .. Targets.describe(kept)
+		else
+			body = "Recursively discard local changes under:\n\n" .. scope.absolute[1]
+			.. "\n\nThis operation cannot be undone."
+		end
 		if recursive then
-			local value, event = ya.input({ title = 'Type "revert" to confirm recursive discard:', pos = { "center", w = 50 } })
+			local value, event = ya.input({ title = 'Type "revert" to confirm:\n' .. body, pos = { "center", w = 60 } })
 			if event ~= 1 or value ~= (cfg.discard.recursive_confirm_text or "revert") then return Notify.info("Discard cancelled.") end
-		elseif cfg.discard.confirm then
+		else
 			local value, event = ya.input({
 				title = 'Type "discard" to confirm:\n' .. body,
 				pos = { "center", w = 60 },
@@ -414,11 +415,11 @@ end
 
 local function copy_action(with_revision)
 	local cfg = Config.get()
-	local _, _, cwd = current_context()
-	local kind, root = context_root(cwd, cfg)
-	if not kind then return end
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
 
-	local relative, _, _, absolute = selected_targets(root)
+	local relative, absolute = scope.paths, scope.absolute
 	if not relative or #relative == 0 then return Notify.warn("No VCS target selected.") end
 	local relpath, target = relative[1], absolute[1]
 	local record = State.info_of(root)

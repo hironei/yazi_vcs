@@ -36,16 +36,21 @@ function M.trim_trailing_slash(p)
 	return trimmed
 end
 
+local function comparison_path(p)
+	p = M.trim_trailing_slash(M.to_slash(p))
+	if p:match("^%a:/") or p:sub(1, 2) == "//" then return p:lower() end
+	return p
+end
+
 --- Whether `target` is `root` itself or a descendant of it.
---- Comparison is done on slash-normalized paths; on case-insensitive
---- filesystems (Windows) callers should lower-case both beforehand if a
---- case-insensitive match is desired.
+--- Windows drive and UNC paths are compared case-insensitively; POSIX paths
+--- remain case-sensitive.
 ---@param root string
 ---@param target string
 ---@return boolean
 function M.is_within(root, target)
-	root = M.trim_trailing_slash(M.to_slash(root))
-	target = M.to_slash(target)
+	root = comparison_path(root)
+	target = comparison_path(target)
 	if target == root then
 		return true
 	end
@@ -63,13 +68,42 @@ function M.strip_prefix(root, target)
 	if not M.is_within(root, target) then
 		return nil
 	end
+	local comparable_root = comparison_path(root)
+	local comparable_target = comparison_path(target)
 	root = M.trim_trailing_slash(M.to_slash(root))
 	target = M.to_slash(target)
-	if target == root then
+	if comparable_target == comparable_root then
 		return ""
 	end
 	local prefix_length = root:sub(-1) == "/" and #root or (#root + 1)
 	return target:sub(prefix_length + 1)
+end
+
+--- Return the directory containing `path`.
+---@param path string
+---@return string
+function M.parent(path)
+	path = M.trim_trailing_slash(M.to_slash(path))
+	local slash = path:match("^.*()/")
+	if not slash then return path end
+	local parent = path:sub(1, slash - 1)
+	if parent == "" then return "/" end
+	if parent:match("^%a:$") then return parent .. "/" end
+	return parent
+end
+
+--- Compare filesystem paths for repository identity.
+--- Windows drive and UNC paths are case-insensitive; POSIX paths are not.
+---@param left string
+---@param right string
+---@return boolean
+function M.same(left, right)
+	left = M.trim_trailing_slash(M.to_slash(left))
+	right = M.trim_trailing_slash(M.to_slash(right))
+	if left == right then return true end
+	local windows = left:match("^%a:/") or right:match("^%a:/")
+		or left:sub(1, 2) == "//" or right:sub(1, 2) == "//"
+	return windows and left:lower() == right:lower() or false
 end
 
 --- Join a root path and a slash-separated relative path, native-separated.

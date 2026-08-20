@@ -16,7 +16,7 @@ M.defaults = {
 	editor = { command = "nvim", args = {} },
 	pager = { command = "less", args = { "-R" } },
 	update = { git = { "git", "pull", "--ff-only" }, svn = { "svn", "update" } },
-	-- Target scope is always selected > hovered > current (requirements
+	-- Target scope is always selected > cwd (requirements
 	-- §7); there is no per-operation scope-restriction knob.
 	commit = { allow_empty_message = false, git_mode = "paths" },
 	diff = {
@@ -33,7 +33,7 @@ M.defaults = {
 		svn_external = nil,
 	},
 	path = { external_style = "auto" },
-	discard = { confirm = true, recursive_confirm_text = "revert" },
+	discard = { recursive_confirm_text = "revert" },
 	runner = { timeout_ms = 30000 },
 	git = {
 		-- Force Push, Force Delete, auto-stash, and forced Switch are

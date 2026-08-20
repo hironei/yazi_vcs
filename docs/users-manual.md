@@ -101,7 +101,6 @@ require("vcs"):setup()
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
 | `path.external_style` | `"auto"` | 外部コマンドへ渡すパス形式の自動判定 |
-| `discard.confirm` | `true` | 変更破棄前に確認する |
 
 より細かく変更する場合は、`init.lua`の`setup`へ次の設定キーを指定します。`update`、`diff.*_cli`、`log.*_cli`の配列は先頭に実行コマンドを含めます。外部コマンドだけは`command`と`args`を分けて指定します。
 
@@ -116,7 +115,7 @@ require("vcs"):setup()
 | `diff.svn_cli` | `{ "svn", "diff", "--", "{targets}" }` | SVNのCLI Diff |
 | `log.git_cli` | `git log --decorate --oneline --graph ...` | Gitの対象指定Log |
 | `log.svn_cli` | `{ "svn", "log", "--", "{targets}" }` | SVNのCLI Log |
-| `discard.recursive_confirm_text` | `"revert"` | 再帰的Discardの確認文字列 |
+| `discard.recursive_confirm_text` | `"revert"` | Discard（selected／cwdを問わず必ず確認）の確認文字列 |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト。`0`はタイムアウト無効（無期限） |
 | `git.push.default_remote` | `"origin"` | upstream未設定時に優先するremote |
 | `git.push.set_upstream_if_missing` | `true` | upstream未設定時に`--set-upstream`を許可 |
@@ -211,17 +210,19 @@ desc = "Git switch"
 
 ### Git／SVN共通コマンド
 
-操作対象は原則として「選択中の項目 → hover中の項目 → 現在の項目」の順で決まります。ただし、statusはYaziが表示中のファイルを対象に自動実行し、updateは作業ツリー／working copy全体を更新します。
+操作対象は「選択中の項目 → 現在のディレクトリ」の順で決まります。hover中の項目だけではVCS操作対象は変わりません。cwdがVCS外でも、VCSリポジトリのディレクトリを選択すれば、そのリポジトリを操作できます。statusはYaziが表示中のファイルを対象に自動実行し、Update／Push／Branch／Switchは解決したrepository context全体を操作します。
 
 | Yaziから呼び出すコマンド | Gitで実行されるコマンド | SVNで実行されるコマンド | 内容 |
 | --- | --- | --- | --- |
 | `plugin vcs -- status` | `git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching -- <paths>` | `svn status --xml --no-ignore --ignore-externals -- <paths>` | statusを再取得。通常はfetcherが自動実行 |
 | `plugin vcs -- update` | `git pull --ff-only` | `svn update` | fast-forwardのみのGit pull、またはSVN update。認証入力が必要な場合はYaziを隠して端末入力を引き継ぎます |
-| `plugin vcs -- add` | `git add -- <targets>` | `svn add -- <targets>` | 選択対象をバージョン管理に追加（Gitはstageも兼ねる）。確認不要 |
-| `plugin vcs -- commit` | `git commit --file=<message> -- <selected paths>` | `svn commit --file=<message> -- <selected paths>` | 確認後、エディタでメッセージを入力してCommit |
+| `plugin vcs -- add` | `git add -- <targets>` | `svn add -- <targets>` | 選択対象、または未選択時のcwdをバージョン管理に追加（cwd scopeは確認が必要。Gitはstageも兼ねる） |
+| `plugin vcs -- commit` | `git commit --file=<message> -- <selected paths>` | `svn commit --file=<message> -- <selected paths>` | 対象を表示して確認後、エディタでメッセージを入力してCommit。未選択時はcwd scopeを明示 |
 | `plugin vcs -- diff` | `git diff -- <targets>` | `svn diff -- <targets>` | CLI Diffをpagerで表示 |
 | `plugin vcs -- log` | `git log --decorate --oneline --graph -- <targets>` | `svn log -- <targets>` | CLI Logをpagerで表示 |
-| `plugin vcs -- discard` | `git restore -- <targets>` | `svn revert [--depth=infinity] -- <targets>` | ローカル変更を破棄。確認が必要 |
+| `plugin vcs -- discard` | `git restore -- <targets>` | `svn revert [--depth=infinity] -- <targets>` | ローカル変更を破棄。selected／cwdを問わずtyped confirmationが必要 |
+
+repository root、またはrepository rootをcwdとしているscopeのDiff／Logでは、`.`をpath filterとして渡さずリポジトリ全体を表示します。通常のselected pathやroot以外のcwdでは、そのpathだけを対象にします。
 
 Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みの内容をCommitします。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
 
@@ -320,7 +321,7 @@ Gitの外部Logは`TortoiseGitProc.exe`のログダイアログを起動しま�
 | `path_style = "native"` | 実行環境のパス形式をそのまま渡す |
 | `path_style = "windows"` | Windows形式へ変換して渡す |
 | `{root}` | VCSルート |
-| `{file}` | hover中のファイル |
+| `{file}` | selected先頭のpath。selectedがなければcwd |
 | `{targets}` | 対象ファイル。対象ごとに別引数へ展開 |
 | `{revision}` | Log／Diffで利用できるリビジョン値 |
 

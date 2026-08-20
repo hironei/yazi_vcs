@@ -8,6 +8,7 @@ local State = require(".core-state")
 local Notify = require(".core-notify")
 local Path = require(".core-path")
 local Runner = require(".core-runner")
+local Scope = require(".core-scope")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
@@ -106,10 +107,10 @@ function M:entry(job)
 end
 
 function M.refresh_status()
-	local cwd, cfg = State.current_url(), Config.get()
-	local _, detected_root = Detector.detect(cwd, cfg.detection.priority)
-	local root = detected_root or State.root_of(tostring(cwd))
-	if not root then return Notify.warn("Not inside a Git or SVN working copy.") end
+	local cfg = Config.get()
+	local scope = Scope.resolve_or_notify(cfg)
+	if not scope then return end
+	local root = scope.root
 	State.clear_root(root)
 	ya.emit("refresh", {})
 	Notify.info("VCS status refreshed.")
