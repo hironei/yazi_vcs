@@ -1,11 +1,10 @@
 -- actions.lua
 -- Phase 2 common VCS operations plus Phase 4 external viewers.
 local Config = require(".config")
-local Context = require(".core-context")
-local Detector = require(".core-detector")
 local External = require(".core-external")
 local Notify = require(".core-notify")
 local Runner = require(".core-runner")
+local Scope = require(".core-scope")
 local State = require(".core-state")
 local Targets = require(".core-targets")
 local Commands = require(".core-commands")
@@ -22,19 +21,7 @@ local function trace(stage)
 end
 
 local function resolve_scope(cfg)
-	local context = Context.snapshot()
-	local scope, reason = Targets.resolve(context.selected, context.cwd, context.info, function(start)
-		return Detector.detect(Url(start), cfg.detection.priority)
-	end)
-	if scope then return scope end
-	if reason and reason.code == "mixed" then
-		Notify.error("Selected targets do not belong to the same Git or SVN working copy.")
-	elseif reason and reason.code == "outside" then
-		Notify.error("Refusing VCS operation outside the repository: %s", reason.path)
-	else
-		Notify.warn("Not inside a Git or SVN working copy.")
-	end
-	return nil
+	return Scope.resolve_or_notify(cfg)
 end
 
 local function run(root, command, args, cfg)

@@ -32,20 +32,21 @@ function M.resolve(selected, cwd, info, detect)
 	local absolute, source, explicit = M.choose(selected, cwd)
 	if #absolute == 0 then return nil, { code = "no-target" } end
 
-	local kind, root
+	local kind, root, missing_path
 	for _, path in ipairs(absolute) do
 		local start = path
 		if source == "selected" and not (info and info[path]) then start = Path.parent(path) end
 		local found_kind, found_root = detect(start)
 		if not found_kind or not found_root then
-			return nil, { code = #absolute > 1 and "mixed" or "not-found", path = path }
-		end
-		if not kind then
+			missing_path = missing_path or path
+		elseif not kind then
 			kind, root = found_kind, found_root
 		elseif kind ~= found_kind or not Path.same(root, found_root) then
 			return nil, { code = "mixed", path = path }
 		end
 	end
+	if not kind then return nil, { code = "not-found", path = missing_path or absolute[1] } end
+	if missing_path then return nil, { code = "mixed", path = missing_path } end
 
 	local relative, invalid = M.relative(absolute, root)
 	if not relative then return nil, { code = "outside", path = invalid } end

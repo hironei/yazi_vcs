@@ -1,29 +1,17 @@
 -- git-actions.lua
 -- Phase 3 Git-only operations: push, branch management, and switch.
 local Config = require(".config")
-local Context = require(".core-context")
-local Detector = require(".core-detector")
 local Git = require(".core-git")
 local Notify = require(".core-notify")
 local Runner = require(".core-runner")
+local Scope = require(".core-scope")
 local State = require(".core-state")
-local Targets = require(".core-targets")
 
 local M = {}
 
 local function root_for_git(cfg)
-	local context = Context.snapshot()
-	local scope, reason = Targets.resolve(context.selected, context.cwd, context.info, function(start)
-		return Detector.detect(Url(start), cfg.detection.priority)
-	end)
-	if not scope then
-		if reason and reason.code == "mixed" then
-			Notify.error("Selected targets do not belong to the same Git or SVN working copy.")
-		else
-			Notify.warn("Not inside a Git or SVN working copy.")
-		end
-		return nil
-	end
+	local scope = Scope.resolve_or_notify(cfg)
+	if not scope then return nil end
 	if scope.kind ~= "git" then
 		Notify.warn("This Git-only operation requires a Git repository.")
 		return nil

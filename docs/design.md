@@ -10,6 +10,7 @@
 - `backend-git.lua` / `backend-svn.lua`: CLI仕様、status/info/revision出力解析
 - `core-commands.lua` / `core-git.lua`: 引数構築とGit固有の純粋ロジック
 - `core-context.lua`: VCS操作開始時のselected／cwd／file metadata snapshot
+- `core-scope.lua`: context snapshotからの共通scope解決と失敗通知
 - `core-detector.lua` / `core-targets.lua` / `core-path.lua`: root検出、scope解決、対象選択、境界検証、パス変換
 - `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、GUI orphan起動
 - `core-state.lua`: `ya.sync`越しのroot別status/infoと操作ロック
@@ -95,7 +96,7 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 | 要件領域 | 実装 | 主な検証 |
 | --- | --- | --- |
 | VCS検出／status | `core-detector.lua`, `backend-*`, `main.lua` | backend/detector/status tests、Git/SVN統合 |
-| Scope／対象境界／引数 | `core-context.lua`, `core-targets.lua`, `core-path.lua`, `core-commands.lua` | scope/target/command tests |
+| Scope／対象境界／引数 | `core-context.lua`, `core-scope.lua`, `core-targets.lua`, `core-path.lua`, `core-commands.lua` | scope/target/command tests |
 | 設定マージ | `config.lua` | false、配列置換、空配列テスト |
 | timeout | `core-runner.lua` と全read-only caller | `next_poll`、構文、実Yazi手動確認 |
 | Update／認証 | `actions.lua`, `core-runner.lua` | 実Yazi・認証環境で手動確認 |

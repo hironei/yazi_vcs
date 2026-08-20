@@ -174,6 +174,7 @@ vcs.yazi/
 ├── core-detector.lua     -- VCS種別・ルート検出
 ├── core-runner.lua       -- 外部コマンド実行ラッパー
 ├── core-context.lua      -- 操作開始時のselected／cwd／metadata snapshot
+├── core-scope.lua        -- 共通scope解決と失敗通知
 ├── core-targets.lua      -- 操作scopeと対象ファイル決定
 ├── core-external.lua     -- エディタ／pager／外部ツール起動
 ├── core-path.lua         -- パス正規化・変換

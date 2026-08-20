@@ -42,6 +42,19 @@ return function(t)
 	}))
 	t.falsy(mixed_vcs, "VCS and non-VCS selections are rejected")
 	t.eq(mixed_vcs_reason.code, "mixed", "VCS and non-VCS rejection is classified")
+	local outside, outside_reason = targets.resolve({ "/outside-a", "/outside-b" }, "/work", { ["/outside-a"] = false, ["/outside-b"] = false }, detect({}))
+	t.falsy(outside, "multiple non-VCS selections are rejected")
+	t.eq(outside_reason.code, "not-found", "multiple non-VCS selections are not classified as mixed")
+	local outside_first, outside_first_reason = targets.resolve({ "/outside", "/repo" }, "/work", { ["/outside"] = false, ["/repo"] = true }, detect({
+		{ path = "/repo", kind = "git", root = "/repo" },
+	}))
+	t.falsy(outside_first, "non-VCS followed by VCS selection is rejected")
+	t.eq(outside_first_reason.code, "mixed", "non-VCS and VCS selection is classified as mixed regardless of order")
+	local case_scope = targets.resolve({ "C:/repo/File.txt" }, "C:/work", { ["C:/repo/File.txt"] = false }, function(path)
+		if path:lower() == "c:/repo" then return "git", "C:/Repo" end
+		return nil, nil
+	end)
+	t.deep_eq(case_scope.paths, { "File.txt" }, "Windows case differences do not break root-relative resolution")
 	t.deep_eq(targets.relative({ "/repo", "/repo/src/a b.txt" }, "/repo"), { ".", "src/a b.txt" }, "root-relative paths")
 	local _, invalid = targets.relative({ "/other/a" }, "/repo")
 	t.eq(invalid, "/other/a", "paths outside root are rejected")

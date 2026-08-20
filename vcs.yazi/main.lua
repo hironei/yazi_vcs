@@ -2,14 +2,13 @@
 -- main.lua
 -- Fetcher/status display plus Phase 2, Phase 3, and Phase 4 actions.
 local Config = require(".config")
-local Context = require(".core-context")
 local Detector = require(".core-detector")
 local FileStatus = require(".core-status")
 local State = require(".core-state")
 local Notify = require(".core-notify")
 local Path = require(".core-path")
 local Runner = require(".core-runner")
-local Targets = require(".core-targets")
+local Scope = require(".core-scope")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
@@ -109,16 +108,8 @@ end
 
 function M.refresh_status()
 	local cfg = Config.get()
-	local context = Context.snapshot()
-	local scope, reason = Targets.resolve(context.selected, context.cwd, context.info, function(start)
-		return Detector.detect(Url(start), cfg.detection.priority)
-	end)
-	if not scope then
-		if reason and reason.code == "mixed" then
-			return Notify.error("Selected targets do not belong to the same Git or SVN working copy.")
-		end
-		return Notify.warn("Not inside a Git or SVN working copy.")
-	end
+	local scope = Scope.resolve_or_notify(cfg)
+	if not scope then return end
 	local root = scope.root
 	State.clear_root(root)
 	ya.emit("refresh", {})

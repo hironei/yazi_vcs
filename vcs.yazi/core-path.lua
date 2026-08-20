@@ -36,16 +36,21 @@ function M.trim_trailing_slash(p)
 	return trimmed
 end
 
+local function comparison_path(p)
+	p = M.trim_trailing_slash(M.to_slash(p))
+	if p:match("^%a:/") or p:sub(1, 2) == "//" then return p:lower() end
+	return p
+end
+
 --- Whether `target` is `root` itself or a descendant of it.
---- Comparison is done on slash-normalized paths; on case-insensitive
---- filesystems (Windows) callers should lower-case both beforehand if a
---- case-insensitive match is desired.
+--- Windows drive and UNC paths are compared case-insensitively; POSIX paths
+--- remain case-sensitive.
 ---@param root string
 ---@param target string
 ---@return boolean
 function M.is_within(root, target)
-	root = M.trim_trailing_slash(M.to_slash(root))
-	target = M.to_slash(target)
+	root = comparison_path(root)
+	target = comparison_path(target)
 	if target == root then
 		return true
 	end
@@ -63,9 +68,11 @@ function M.strip_prefix(root, target)
 	if not M.is_within(root, target) then
 		return nil
 	end
+	local comparable_root = comparison_path(root)
+	local comparable_target = comparison_path(target)
 	root = M.trim_trailing_slash(M.to_slash(root))
 	target = M.to_slash(target)
-	if target == root then
+	if comparable_target == comparable_root then
 		return ""
 	end
 	local prefix_length = root:sub(-1) == "/" and #root or (#root + 1)
