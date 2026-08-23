@@ -4,7 +4,7 @@ Yaziのファイル一覧へGit／Subversionの状態とリポジトリ位置を
 
 ## 対応環境
 
-- Yazi 26.5.6以降
+- Yazi 26.8.15以降
 - Git 2.30以降、SVN 1.9以降
 - Linux、macOS、Windows、Git Bash、WSL
 

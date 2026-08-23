@@ -27,6 +27,10 @@
 - [x] [#34](https://github.com/hironei/yazi_vcs/issues/34) — Commitの`ya.confirm()`がWindows上のfunctional plugin taskで描画されずタスクが保留状態になる（#22と同種）。Commit・Git Branch削除の確認を`ya.input()`によるタイプ確認へ統一
 - [x] [#36](https://github.com/hironei/yazi_vcs/issues/36) — VCS操作対象を`selected > cwd`へ統一し、repository境界検証とcwd scopeのRisk Policyを導入する
 
+## 対応中（2026-08-23）
+
+- [ ] [#38](https://github.com/hironei/yazi_vcs/issues/38) — Yazi 26.8.15対応: fetcher API更新とYazi依存の互換レイヤ分離（`core-fetcher.lua`新設、`main.lua`のfetcher契約更新、`core-context.lua`のFile／Url対応、対応Yaziバージョンを26.8.15以降へ更新。自動テストは通過済みだが、下記「目視確認」のWindows + Yazi 26.8.15実機確認が未了のためissueは未クローズ）
+
 ## 目視確認（ユーザー対応が必要）
 
 - [x] 実際のYazi画面でPhase2〜4のキー操作と通知を確認する
@@ -36,6 +40,14 @@
 - [x] 外部Diff／LogのTUIとWindows GUI起動を実環境で確認する
 - [ ] `git.yazi`との同時利用で記号が二重表示されないか確認する
 - [x] WSLの`wslpath -w`、Git Bashの`cygpath -w`によるGUIパス変換を確認する
+- [x] （#38、要件§26.5）Windows + Yazi 26.8.15でGitリポジトリを開いてもfetcher Taskが残り続けない
+- [x] （#38）Git status記号が表示される
+- [ ] （#38）ファイル編集後にstatusが更新される
+- [ ] （#38）`git add`／`git commit`後にstatusが更新される
+- [ ] （#38）VCS外ディレクトリでもTaskが残留しない
+- [ ] （#38）選択あり／なし双方で既存VCS操作が動作する
+- [ ] （#38）SVN環境でもstatus fetcherがTaskを残留させない
+- [ ] （#38）正常時に毎回`{retry=true}`を返す方式でも、CLIプロセス再起動やCPU使用率が実用上問題ない範囲に収まっている
 
 ## Phase 4：外部連携・改善
 
