@@ -1,7 +1,7 @@
 # Yazi向け Git／SVN 統合VCSプラグイン 要件定義
 
-- 対象Yaziバージョン：26.5.6 以降
-- 最終更新：2026-08-20
+- 対象Yaziバージョン：26.8.15 以降（Issue #38対応前は26.5.6以降。§5.4参照）
+- 最終更新：2026-08-23
 
 ---
 
@@ -68,7 +68,7 @@ Git固有機能については、共通操作とは分離した形で提供す�
 
 ### 3.1 必須環境
 
-- Yazi 26.5.6 以降
+- Yazi 26.8.15 以降（【Yazi 26.8.15対応で変更、Issue #38】§8.7.2のfetcher契約変更により26.5.6とは非互換。詳細は§5.4）
 - Git CLI 2.30 以降（`git switch`／`git restore`が非experimentalであること）
 - SVN CLI 1.9 以降（`svn info --show-item`が利用可能であること）
 - Windows 11またはLinux
@@ -246,8 +246,10 @@ Yaziは`Loader::compatible_or_error`でプラグイン先頭の`--- @since`ヘ�
 `main.lua`の1行目に以下を記述すること。
 
 ```lua
---- @since 26.5.6
+--- @since 26.8.15
 ```
+
+**【Yazi 26.8.15対応で変更、Issue #38】** §8.7.2のfetcher契約変更に伴い、Yazi 26.5.6の`UnstableFetcher`契約とは非互換になる。これ以降、対応する最低バージョンを26.8.15とし、READMEおよび本項の値もこれに合わせる。`--- @since`ヘッダにより26.8.15未満のYaziはプラグイン読み込み自体を拒否されるため、26.5.6での実際の動作可否は検証対象外とする。26.5.6互換を維持するための複雑な分岐は追加しない（§7.3の`tab.selected`対応のような、他の目的のために自然に両対応できる軽量なduck-typingまで禁止する趣旨ではない）。
 
 ### 5.5 実行コンテキストの制約
 
@@ -334,6 +336,14 @@ Target ResolutionとRisk Policyは分離する。
 - Level 0（Read-only）: Diff、Log、Copy URL、Copy URL + revision、Status refresh、Branch list。追加確認不要。
 - Level 1（Mutating）: Add、Update、Push、Switch、Branch create/rename。既存の安全機構を維持する。Addはselected scopeなら確認不要、cwd scopeなら配下を広く追加し得るため対象ディレクトリを表示して`add`のtyped confirmationを要求する。
 - Level 2（Destructive/Broad Mutation）: Commit、Discard、Branch delete。対象範囲を明示し、必ずtyped confirmationを要求する。Commit／Discardのcwd scopeでは、現在のディレクトリ配下を対象とすることと、広範囲／不可逆になり得ることを確認文へ含める。
+
+### 7.3 Yaziバージョン間のselected表現差異（新設、Issue #38）
+
+Yazi 26.8.15では、operation context snapshot取得時に走査する`tab.selected`の`pairs()`が返す値が、26.5.6時点の`Url`から`File`へ変更される。この変更はcontext snapshot取得（§7冒頭、`core-context.lua`）にのみ影響し、§7.1／§7.2のscope・Risk Policyのルール自体は変更しない。
+
+- selected各要素からpathを取得する処理は、値が`File`（`.url`フィールドを持つ）でも素の`Url`でも同一のpathへ解決できること
+- 26.5.6互換のために複雑な分岐を追加する必要はないが、`.url`フィールドの有無で解決対象を切り替える程度の軽量な処理は許容する
+- `File`が持つ`cha.is_dir`等の付随情報は、必要に応じてcontext snapshotのfile/directory metadataへそのまま反映してよい
 
 ---
 
@@ -512,18 +522,58 @@ group = "vcs"
 
 #### 8.7.2 fetchの責務
 
+**【Yazi 26.8.15対応で全面変更、Issue #38】**
+
+Yazi 26.8.15（yazi#4234「retryable fetch results without errors」、yazi#4235「Dynamic Lua API for preloader, spotter, fetcher」）でfetcher契約が変更された。旧来の`(boolean, Error?)`形式の戻り値では、fetcherが要求するresult tableをYaziが受け取れずTaskが完了扱いにならず残留する。以下の契約に従うこと（実装詳細は公式`git.yazi`の26.8.15対応版を優先して参照する。付録A）。
+
+Yazi固有のfetcher result形式（`ya.co()`、`coroutine.yield(file, {retry=..., error=...})`）は`main.lua`やGit/SVN backend実装へ直接持たせず、専用モジュールへ集約する。専用モジュールの名称・API形状は実装時に決定してよいが、最低限以下を提供すること。
+
+- fetcher成功時のresult coroutine生成（batched CLI呼び出しの結果を、対象ファイル全件へ配分する）
+- retry指定
+- no-op／VCS対象外時の終了
+- fetcherエラー時の終了
+- 将来のYazi fetcher API差分の吸収
+
+`main.lua`側は、この専用モジュールへ委譲するだけの薄い呼び出しにする。Issue #38が示す形を最低限の到達点とする。
+
 ```lua
 ---@type UnstableFetcher
-local function fetch(_, job)
-    -- job.files には現在表示中のファイル群のみが渡る
+function M:fetch(job)
+    if not job.files or #job.files == 0 then return Fetcher.noop(job) end
+    -- VCS種別検出・batched CLI呼び出し・parse・State書き込みまでを1回だけ行う
+    local ok, err = refresh_vcs_status(job)
+    if not ok then return Fetcher.error(job, err) end
+    return Fetcher.retry(job)
 end
 ```
 
-- 起動契機、実行間隔、重複起動の抑止はYaziのfetcherスケジューラが担う。プラグイン側で独自のdebounceタイマーを実装しない
-- `job.files`に含まれるパスのみをCLIへ渡し、リポジトリ全体を走査しない
-- CLI出力の解析後、`ya.sync`関数経由でstateへ書き込み、`ui.render()`を呼ぶ
-- 出力に現れなかったパスは明示的にcleanへリセットし、stateに古い状態を残さない
-- 戻り値は`(boolean, Error?)`。回復不能なエラー時は`true`（再試行不要）を返す
+専用モジュール内部（例: `Fetcher.retry`）は、CLI呼び出しやState書き込みが済んだ後で、`job.files`全件に対して`coroutine.yield`するだけの責務に限定する。
+
+```lua
+-- 専用モジュール内部の実装例。CLI呼び出し・parse・State書き込みは
+-- 呼び出し側（VCS status refresh層）で完了済みという前提に立つ。
+function Fetcher.retry(job)
+    return ya.co(function()
+        for _, file in ipairs(job.files) do
+            coroutine.yield(file, { retry = true })
+        end
+    end)
+end
+```
+
+CLI呼び出し（batched status取得）と`coroutine.yield`のループを1つの関数内で交互に行ってはならない。CLI呼び出しは`job.files`全体に対して1回だけ実行し、その結果が確定してから`job.files`全件へのyieldループに入ること（性能要件§27の「status取得はfetcherが渡す表示中ファイルのみを対象とし、リポジトリ全体を走査しない」は維持しつつ、対象範囲内では1回のCLI呼び出しにまとめる）。
+
+- 戻り値は`ya.co()`が返すcoroutineとする。`(boolean, Error?)`は返さない
+- `coroutine.yield()`は**`job.files`に含まれる全件**に対して行う。status問い合わせを最適化するための重複排除（同一相対パスへ複数エントリが畳み込まれる場合の問い合わせリスト圧縮など）はCLI呼び出しの構築にのみ適用し、yield対象のfile集合とは独立に扱う。問い合わせ用リストとyield対象を混同すると、一部ファイルのTaskだけが完了せず残留する再発バグになる
+- `job.files`が空（0件）の場合も、0回yieldするだけの正常終了coroutineを返してよい。これは新契約における合法な完了シグナルとする
+- VCS statusは外部操作でも変化しうるため、正常取得後も`{ retry = true }`を返し再取得可能な状態を維持する（公式`git.yazi`と同様の方針）。CLI出力の解析後、`ya.sync`関数経由でstateへ書き込み、`ui.render()`を呼ぶ点は従来どおりとする
+- 出力に現れなかったパスは明示的にcleanへリセットし、stateに古い状態を残さない（従来どおり）
+- VCS対象外のディレクトリ、および取得すべきfileが存在しないno-opの場合も、新契約に従って正常終了するcoroutineを返す。ただし、VCS対象外と判定された時点でVCSルート追跡状態を破棄する既存の副作用（§8.7.3の`state.dirs`エントリ破棄、旧実装の`State.forget`相当）は、fetcher契約の変更によって欠落させてはならない
+- Runner実行やbackendへの問い合わせでエラーが発生した場合も、`job.files`の全件についてcoroutineを完了させる。エラー発生時にyieldを打ち切ってcoroutineが不完全なまま残ることを禁止する
+- no-op／VCS対象外時のretry指定方針は、公式`git.yazi`の26.8.15対応実装で確認済み（付録A）。`root(cwd)`がリポジトリ未検出、またはGit/SVNコマンドの起動自体に失敗した場合、公式`git.yazi`はYazi組み込みの`noop`フェッチャー（`yazi-plugin/preset/plugins/noop.lua`）の`fetch`へ委譲し、`job.files`全件に`{}`（retryキーなし＝再試行しない）をyieldする。本プラグインもこれに倣い、VCS対象外時・Runner実行エラー時は`{}`をyieldする（`{retry=true}`を返すのは正常取得時のみ）。エラー時は、公式`git.yazi`が`ya.err(...)`でログするのと同様に`ya.err(...)`でログし、ユーザー向け通知（`Notify`）は行わない。VCS対象外／エラーどちらも、その後の状態変化はコマンド実行成功後の明示的な`ya.emit("refresh", {})`（§9）で検知される前提であり、fetcher自身による継続的な再試行には依存しない
+- Git/SVNのstatus取得・parse・State更新処理は、上記の専用モジュールが提供するfetcher契約から独立させる。Yazi fetcher APIが将来変更されても、`backend-git.lua`／`backend-svn.lua`／CLI実行ロジックを変更せずに済む構造とする（Fetcher adapter → VCS status refresh → State更新 → Fetcher result生成の順に責務を分離する）
+- 正常時に毎回`{ retry = true }`を返す方式は、fetcherが同一ファイル群に対して継続的に再実行され得ることを意味する。既存の§27性能要件（大規模リポジトリでYazi操作を長時間停止させない、`--no-optional-locks`の使用等）を満たしたまま、CLIプロセスの再起動頻度がYaziの再fetch頻度に比例して増えても実用上問題ない範囲に収まることを、§26.5の実機確認で定常状態のCPU使用率・CLI起動頻度として確認する
+- `core-runner.lua`の`Command:spawn()`／`Child:read_line_with()`／`Child:wait()`契約は26.5.6と26.8.15で破壊的変更が確認されていないため、本改訂では変更しない。実機確認で別の不具合が見つかった場合のみ、理由を明記した上で追加修正する
 
 #### 8.7.3 state構造
 
@@ -1578,6 +1628,16 @@ Commit, discard, or stash the changes before switching.
 - Updateの認証可能な対話経路
 - Luaエラー時の操作ロック／`ui.hide()` permit解放
 - state破棄
+- **（新設、Issue #38）fetcher契約アダプタ**
+  - 複数`job.files`全件が正常にresultを返すこと
+  - retry指定が意図通りであること
+  - no-op／VCS対象外でも全件が正常終了すること
+  - エラー系でもcoroutineが不完全なまま残らないこと
+- **（新設、Issue #38）`core-context.lua`のselected解決**
+  - `tab.selected`が`File`相当の値を返すケース（Yazi 26.8.15、実際に到達する経路）
+  - `tab.selected`が`Url`相当の値を返すケース（§7.3のduck-typing処理が両形式を安全に扱えることの関数レベルでの確認。§5.4のバージョン下限により実際のYazi 26.8.15経由では到達しない防御的なテストであることに留意する）
+  - 複数選択
+  - 選択なし
 
 ### 26.2 結合テスト
 
@@ -1631,6 +1691,19 @@ svn checkout "file://<tmp>/repo" <tmp>/wc
 4. `svn revert --depth=infinity`が期待どおり再帰的に動作すること
 5. `svn commit --file=<f>`がUTF-8のメッセージファイルを正しく扱うこと（特にWindows環境）
 6. SVN status XMLにおけるtree-conflictの表現形式
+
+### 26.5 Yazi 26.8.15実機確認（新設、Issue #38）
+
+Windows + Yazi 26.8.15で最低限以下を確認する。
+
+1. Gitリポジトリを開いてもfetcher Taskが残り続けない
+2. Git status記号が表示される
+3. ファイル編集後にstatusが更新される
+4. `git add`／`git commit`後にstatusが更新される
+5. VCS外ディレクトリでもTaskが残留しない
+6. 選択あり／なし双方で既存VCS操作が動作する
+7. SVN環境でもstatus fetcherがTaskを残留させない
+8. 正常時に毎回`{ retry = true }`を返す方式にしたことで、Gitリポジトリを開いたまま放置してもCLIプロセスの再起動やCPU使用率が実用上問題ない範囲に収まっている（§8.7.2のretry-forever方針に対する定常状態確認）
 
 ---
 
@@ -1769,6 +1842,18 @@ Issue #36 の追加受入条件：
 37. 未selected Add、Commit、Discardがcwd scopeを明示し、Risk Policyに従って確認する
 38. Update、Push、Branch、Switch、Status refreshが同じrepository context resolutionを使用する
 
+Issue #38 の追加受入条件：
+
+39. Yazi 26.8.15でfetcher Taskが残留しない
+40. Git status表示が正常に動作する
+41. SVN status表示が正常に動作する
+42. `tab.selected`の`File`返却（Yazi 26.8.15）に対応している
+43. Yazi fetcher依存が専用モジュールへ隔離され、`main.lua`はretry／no-op／errorの抽象呼び出しのみを使用する
+44. Git／SVN backendにYazi fetcher API依存が漏れていない
+45. 既存テストがすべて通る
+46. 新しいfetcher互換レイヤの単体テストが追加されている
+47. READMEの対応Yaziバージョンが26.8.15以降へ更新されている
+
 ---
 
 ## 31. 実装方針
@@ -1826,3 +1911,7 @@ Issue #36 の追加受入条件：
 | `git commit -- <paths>`の挙動 | Git 2.x 実測 |
 | `git restore`の未追跡ファイル挙動 | Git 2.x 実測 |
 | `%09`展開 | Git 2.x 実測 |
+| fetcher契約変更（retryable fetch results） | `sxyazi/yazi` PR #4234 |
+| preloader/spotter/fetcherのDynamic Lua API | `sxyazi/yazi` PR #4235 |
+| Yazi 26.8.15対応fetcher実装 | `yazi-rs/plugins` `git.yazi/main.lua`（26.8.15対応版、`gh api repos/yazi-rs/plugins/contents/git.yazi/main.lua`で実測） |
+| no-op fetcherの契約（`{}`＝retryなし） | `sxyazi/yazi` `yazi-plugin/preset/plugins/noop.lua`（`gh api repos/sxyazi/yazi/contents/...`で実測） |

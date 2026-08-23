@@ -1,18 +1,19 @@
 # vcs.yazi 設計書（as-built）
 
-対象: `vcs.yazi/` Phase 4。本文は現在の実装と要件の対応を記録し、未検証の実Yazi UI・外部GUI挙動は検証境界として分離する。
+対象: `vcs.yazi/` Phase 4、および Issue #38（Yazi 26.8.15対応: fetcher API更新とYazi依存の互換レイヤ分離）。本文は現在の実装と要件の対応を記録し、未検証の実Yazi UI・外部GUI挙動は検証境界として分離する。
 
 ## 1. モジュール責務と依存方向
 
-- `main.lua`: fetcher、状態表示、status bar情報、status refresh、操作dispatch
+- `main.lua`: fetcher（`core-fetcher.lua`への委譲を含む）、状態表示、status bar情報、status refresh、操作dispatch
+- `core-fetcher.lua`: **【新設、Issue #38】** Yazi `UnstableFetcher`契約（`ya.co()`／`coroutine.yield(file, {retry=..., error=...})`）のみを集約するアダプタ。`main.lua`やbackendへYazi固有のfetcher result形式を漏らさない（§3参照）
 - `actions.lua`: Update／Commit／CLI Diff／CLI Log／Discard、外部操作
 - `git-actions.lua`: Push、Branch、Switch
 - `backend-git.lua` / `backend-svn.lua`: CLI仕様、status/info/revision出力解析
 - `core-commands.lua` / `core-git.lua`: 引数構築とGit固有の純粋ロジック
-- `core-context.lua`: VCS操作開始時のselected／cwd／file metadata snapshot
+- `core-context.lua`: VCS操作開始時のselected／cwd／file metadata snapshot。Yazi 26.8.15で`tab.selected`の`pairs()`要素が`Url`から`File`へ変わるため、`.url`フィールドの有無で分岐する軽量なduck-typingで両形式を吸収する（§2、要件§7.3）
 - `core-scope.lua`: context snapshotからの共通scope解決と失敗通知
 - `core-detector.lua` / `core-targets.lua` / `core-path.lua`: root検出、scope解決、対象選択、境界検証、パス変換
-- `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、GUI orphan起動
+- `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、GUI orphan起動。Issue #38では変更しない（要件§8.7.2）
 - `core-state.lua`: `ya.sync`越しのroot別status/infoと操作ロック
 - `core-external.lua` / `core-vcs-info.lua` / `core-notify.lua`: 外部設定、表示整形、通知
 - `config.lua`: 既定値とユーザー設定のマージ
@@ -32,23 +33,75 @@ Context Snapshot (selected / cwd / file metadata)
 
 `core-context.lua`は1回の操作でYazi contextを1回だけ取得する。`core-targets.lua`はhoveredを参照せず、selectedがあれば全selected、なければcwdを返す。各selected pathはdirectoryなら自身、fileならparentをDetectorへ渡し、全pathのkind/root一致を検証する。異なるrepository、Git/SVN混在、VCS外path混在は拒否する。root-relative `.` はrepository scopeとして扱い、Diff／Logではpath filterを省略する。
 
+**【Yazi 26.8.15対応で変更、Issue #38】** `tab.selected`の`pairs()`が返す各要素は、26.5.6では`Url`、26.8.15では`File`である。`core-context.lua`は`local url = entry.url or entry`のように`.url`フィールドの有無で分岐し、いずれの形式からも同一のpathへ解決する。バージョン判定用の複雑な分岐は追加しない。`File`が持つ`cha.is_dir`等の付随情報は、必要に応じて既存のfile/directory metadata snapshotへそのまま反映する。
+
 Actions、Git actions、Status refreshは同じresolverを使用する。Fetcherの通常status取得とstatus bar／linemodeのhover表示はこの操作scopeとは独立し、従来どおり表示中のファイルやhoverを使用できる。
 
 未selectedのAddはcwd配下への広範囲追加となり得るため`add`確認を行う。CommitとDiscardはselected有無にかかわらずtyped confirmationを行い、cwd scopeでは絶対パスと広範囲／不可逆性を確認文へ表示する。
 
 ## 3. Fetcherと状態フロー
 
+**【Yazi 26.8.15対応で全面変更、Issue #38】** Yazi 26.8.15のfetcher契約変更（yazi#4234, yazi#4235）に伴い、`M:fetch`の戻り値契約とVCS status取得ロジックを分離する。4段階のパイプラインとする。
+
 ```text
-Yazi fetcher(job.files)
-  -> cwdから親方向へ.git/.svnを検出
-  -> 表示中パスをroot-relativeへ変換
-  -> backend.status_specをRunner.run(timeout_ms)で実行
-  -> status解析、ディレクトリ集約、除外反映
-  -> info_specもRunner.run(timeout_ms)で取得
-  -> State.remember (ya.sync) -> ui.render
+main.lua: M:fetch(job)
+  1. 呼び出し口 (main.lua)。job.files が空なら core-fetcher.lua の Fetcher.noop(job) へ即委譲
+  2. VCS status refresh (main.lua内、既存ロジックを踏襲)
+       -> cwdから親方向へ.git/.svnを検出（Detector）
+          検出できない -> State.forget(cwd) を呼んだ上で Fetcher.noop(job) へ
+       -> 表示中パスをroot-relativeへ変換し、重複排除した問い合わせリストを構築
+       -> backend.status_specをRunner.run(timeout_ms)で1回だけ実行
+          失敗 -> Fetcher.error(job, err) へ（State更新は行わない）
+       -> status解析、ディレクトリ集約、除外反映
+       -> info_specもRunner.run(timeout_ms)で取得
+  3. State更新 (core-state.lua)
+       -> State.remember (ya.sync) -> ui.render
+  4. Fetcher result生成 (core-fetcher.lua)
+       -> Fetcher.retry(job) が job.files 全件へ coroutine.yield(file, {retry=true}) する
 ```
 
-`State.roots[root]`は非clean状態だけを保持し、今回問い合わせたパスが出力にない場合はcleanとして既存値を削除する。描画コールバックはstate参照だけでCLIやファイルI/Oを行わない。
+- ステップ2・3はYazi fetcher契約に依存しない既存の同期的処理（`Detector`、`BACKENDS[kind]`、`Runner.run`、`State.remember`）をそのまま踏襲し、`main.lua`内に留める。新規モジュール化は行わない（Issue #38は「Yazi fetcher契約からの独立」を要求しているのであって、ファイル分割そのものを要求していない）
+- `core-fetcher.lua`が提供するのはステップ1（`job.files`空時の即時委譲）とステップ4（result coroutine生成）の2箇所の呼び出し先、すなわち`Fetcher.noop`／`Fetcher.error`／`Fetcher.retry`の3関数のみ。coroutine／`ya.co`の実体はすべてこのモジュール内に閉じる。
+
+```lua
+-- core-fetcher.lua
+local M = {}
+
+-- 正常取得時のみ使用。VCS statusは外部操作でも変化しうるため、常に再取得可能とする。
+function M.retry(job)
+    return ya.co(function()
+        for _, file in ipairs(job.files) do
+            coroutine.yield(file, { retry = true })
+        end
+    end)
+end
+
+-- VCS対象外（リポジトリ未検出）時に使用。公式git.yaziの26.8.15対応実装がYazi組み込みの
+-- noopフェッチャー（yazi-plugin/preset/plugins/noop.lua）へ委譲する挙動と同じく、
+-- retryキーなしの{}をyieldする（要件§8.7.2、付録A）。
+function M.noop(job)
+    return ya.co(function()
+        for _, file in ipairs(job.files) do
+            coroutine.yield(file, {})
+        end
+    end)
+end
+
+-- Runner実行等のエラー時に使用。公式git.yaziがCommand:spawn()失敗時にya.err()でログした
+-- うえでnoopへ委譲するのと同じく、ya.err()でログしてから retry なしで終了する。
+function M.error(job, err)
+    ya.err(tostring(err))
+    return M.noop(job)
+end
+
+return M
+```
+
+- `main.lua`の`M:fetch(job)`は、ステップ2・3を実行する既存ロジック（現行の`fetch_vcs_info`と同様の非公開ローカル関数、例: `refresh_vcs_status(job)`）を引き続き保持する。新契約で薄くなるのは最終的な戻り値の生成部分だけであり、`refresh_vcs_status`の結果（成功／VCS対象外／エラー）に応じて`Fetcher.noop`／`Fetcher.error`／`Fetcher.retry`のいずれかへ委譲する（要件§8.7.2の`main.lua`側サンプル）。Detector呼び出しやRunner実行そのものが軽量化されるわけではない
+- `coroutine.yield`は`refresh_vcs_status`が内部で使った重複排除後の問い合わせリストではなく、`job.files`原本の全件に対して行う（`Fetcher.retry`/`Fetcher.error`の実装がこれを保証する。要件§8.7.2）
+- `State.forget(cwd_str)`（VCS対象外検出時にルート追跡を破棄する副作用）は、ステップ2の中で`Fetcher.noop`を呼ぶ**前**に必ず実行する。`core-fetcher.lua`側にこの副作用を持たせない
+- `State.roots[root]`は非clean状態だけを保持し、今回問い合わせたパスが出力にない場合はcleanとして既存値を削除する。描画コールバックはstate参照だけでCLIやファイルI/Oを行わない
+- 正常系は毎回`Fetcher.retry`（`{retry=true}`）を返すため、Yaziは同一ファイル群に対して継続的に`fetch`を再実行し得る。§8性能要件を満たす範囲に収まることを実機で確認する（要件§26.5）
 
 ## 4. 設定マージ
 
@@ -89,13 +142,15 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 - Force Push、Force Delete、auto-stash、未追跡ファイル削除を実行しない
 - 認証情報をログ・通知へ出力しない
 - 配列設定の置換により、ユーザーの明示したコマンド引数を既定値が変形しない
-- 対応Yaziは26.5.6以降。`main.lua`の`--- @since 26.5.6`とREADMEを一致させる
+- 対応Yaziは26.8.15以降（**【Yazi 26.8.15対応で変更、Issue #38】** fetcher契約の破壊的変更により26.5.6とは非互換）。`main.lua`の`--- @since 26.8.15`とREADMEを一致させる
 
 ## 9. 要件・テスト対応
 
 | 要件領域 | 実装 | 主な検証 |
 | --- | --- | --- |
 | VCS検出／status | `core-detector.lua`, `backend-*`, `main.lua` | backend/detector/status tests、Git/SVN統合 |
+| fetcher契約（Yazi 26.8.15） | `core-fetcher.lua`, `main.lua` | fetcher adapter単体テスト、実Yazi 26.8.15確認（要件§26.5） |
+| selected表現差異（Yazi 26.8.15） | `core-context.lua` | File／Url双方のcontext snapshotテスト |
 | Scope／対象境界／引数 | `core-context.lua`, `core-scope.lua`, `core-targets.lua`, `core-path.lua`, `core-commands.lua` | scope/target/command tests |
 | 設定マージ | `config.lua` | false、配列置換、空配列テスト |
 | timeout | `core-runner.lua` と全read-only caller | `next_poll`、構文、実Yazi手動確認 |

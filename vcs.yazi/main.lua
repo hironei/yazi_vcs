@@ -1,4 +1,4 @@
---- @since 26.5.6
+--- @since 26.8.15
 -- main.lua
 -- Fetcher/status display plus Phase 2, Phase 3, and Phase 4 actions.
 local Config = require(".config")
@@ -12,6 +12,7 @@ local Scope = require(".core-scope")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
+local Fetcher = require(".core-fetcher")
 
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
@@ -66,13 +67,21 @@ function M:setup(opts)
 	end, cfg.status.order)
 end
 
----@type UnstableFetcher
-function M:fetch(job)
-	if not job.files or #job.files == 0 then return true end
+--- Detect, query, and record VCS status for `job.files` (requirements
+--- §8.7.2 "VCS status refresh"). Independent of Yazi's fetcher result
+--- contract: returns a plain status/error pair, never a coroutine. `M:fetch`
+--- below is the only place that turns this into a Yazi-shaped result.
+---@param job table
+---@return "ok"|"noop"|"error" status
+---@return string? err
+local function refresh_vcs_status(job)
 	local cwd = job.files[1].url.base or job.files[1].url.parent
 	local cwd_str, cfg = tostring(cwd), Config.get()
 	local kind, root = Detector.detect(cwd, cfg.detection.priority)
-	if not kind then State.forget(cwd_str); return true end
+	if not kind then
+		State.forget(cwd_str)
+		return "noop"
+	end
 	local root_str, queried, seen = root, {}, {}
 	for _, file in ipairs(job.files) do
 		local rel = Path.strip_prefix(root_str, tostring(file.url))
@@ -83,9 +92,11 @@ function M:fetch(job)
 	end
 	local backend = BACKENDS[kind]
 	local output, err = Runner.run(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }), cfg.runner.timeout_ms)
-	if not output then return true, Err("Cannot run `%s status`: %s", kind, err) end
+	if not output then
+		return "error", string.format("Cannot run `%s status`: %s", kind, tostring(err))
+	end
 	if not output.status.success then
-		return true, Err("Cannot run `%s status`: %s", kind, Runner.error_text(output, err))
+		return "error", string.format("Cannot run `%s status`: %s", kind, Runner.error_text(output, err))
 	end
 	local changed, excluded = backend.parse_status_output(output.stdout)
 	if cfg.status.aggregate_directories then FileStatus.merge(changed, FileStatus.bubble_up(changed)) end
@@ -96,7 +107,16 @@ function M:fetch(job)
 	-- location may have changed outside Yazi since the previous fetch.
 	local vcs_info = fetch_vcs_info(kind, root_str, cfg)
 	State.remember(cwd_str, root_str, changed, vcs_info)
-	return false
+	return "ok"
+end
+
+---@type UnstableFetcher
+function M:fetch(job)
+	if not job.files or #job.files == 0 then return Fetcher.noop(job) end
+	local status, err = refresh_vcs_status(job)
+	if status == "noop" then return Fetcher.noop(job) end
+	if status == "error" then return Fetcher.error(job, err) end
+	return Fetcher.retry(job)
 end
 
 function M:entry(job)

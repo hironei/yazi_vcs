@@ -1,6 +1,6 @@
 # vcs.yazi ユーザーガイド
 
-`vcs.yazi`は、Yaziのファイル一覧へGit／Subversion（SVN）の状態とリポジトリ位置を表示し、共通操作、Git操作、外部Diff／Log連携を提供するプラグインです。対応Yaziは26.5.6以降です。
+`vcs.yazi`は、Yaziのファイル一覧へGit／Subversion（SVN）の状態とリポジトリ位置を表示し、共通操作、Git操作、外部Diff／Log連携を提供するプラグインです。対応Yaziは26.8.15以降です。
 
 ## インストールと設定場所
 
