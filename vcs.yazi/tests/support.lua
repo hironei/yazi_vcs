@@ -1,6 +1,7 @@
 -- tests/support.lua
 local M = { pass = 0, fail = 0 }
 M.is_windows = package.config:sub(1, 1) == "\\"
+local Temp = require("core-temp")
 
 function M.shell_quote(value)
 	value = tostring(value)
@@ -25,10 +26,15 @@ function M.capture_in_dir(dir, command)
 end
 
 function M.temp_dir()
-	local dir = os.tmpname()
-	os.remove(dir)
-	os.execute((M.is_windows and "mkdir " or "mkdir -p ") .. M.shell_quote(dir))
+	local dir, err = Temp.path("vcs-test-dir", "")
+	assert(dir, err)
+	M.make_dir(dir)
 	return dir
+end
+
+function M.make_dir(dir)
+	local ok = os.execute((M.is_windows and "mkdir " or "mkdir -p ") .. M.shell_quote(dir))
+	assert(ok, "could not create temporary directory: " .. dir)
 end
 
 function M.remove_tree(dir)
