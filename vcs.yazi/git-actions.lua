@@ -6,6 +6,7 @@ local Notify = require(".core-notify")
 local Runner = require(".core-runner")
 local Scope = require(".core-scope")
 local State = require(".core-state")
+local Temp = require(".core-temp")
 
 local M = {}
 
@@ -75,7 +76,9 @@ local function branch_data(root, cfg, include_remote)
 end
 
 local function temp_output_file(content)
-	local url = Url(os.tmpname())
+	local temp_path, path_err = Temp.path("vcs-output")
+	if not temp_path then return nil, path_err end
+	local url = Url(temp_path)
 	local path = tostring(url)
 	local ok, err = fs.write(url, content or "")
 	if not ok then return nil, err end

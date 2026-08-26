@@ -8,6 +8,7 @@ local Scope = require(".core-scope")
 local State = require(".core-state")
 local Targets = require(".core-targets")
 local Commands = require(".core-commands")
+local Temp = require(".core-temp")
 local GitBackend = require(".backend-git")
 local SvnBackend = require(".backend-svn")
 local VcsInfo = require(".core-vcs-info")
@@ -92,7 +93,8 @@ local function failure(operation, output, err)
 end
 
 local function temp_file(content)
-	local path = os.tmpname()
+	local path, path_err = Temp.path("vcs-message")
+	if not path then return nil, path_err end
 	local file, err = io.open(path, "w")
 	if not file then return nil, err end
 	file:write(content or "")
@@ -104,7 +106,9 @@ end
 --- runs in an async plugin context, where Lua's blocking `io.open()` can
 --- leave the task pending on Windows before the pager is started.
 local function temp_output_file(content)
-	local url = Url(os.tmpname())
+	local temp_path, path_err = Temp.path("vcs-output")
+	if not temp_path then return nil, path_err end
+	local url = Url(temp_path)
 	local path = tostring(url)
 	local ok, err = fs.write(url, content or "")
 	if not ok then return nil, err end
