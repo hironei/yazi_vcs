@@ -9,7 +9,7 @@ local suites = {
 	"test-config", "test-core-path", "test-core-status", "test-core-detector", "test-core-targets",
 	"test-core-commands", "test-core-runner", "test-core-git", "test-core-external", "test-support", "test-backend-git",
 	"test-backend-svn", "test-operations", "test-git-phase3",
-	"test-core-vcs-info", "test-core-fetcher", "test-core-context",
+	"test-core-vcs-info", "test-core-fetcher", "test-core-context", "test-core-changes",
 	"test-core-temp",
 }
 for _, name in ipairs(suites) do

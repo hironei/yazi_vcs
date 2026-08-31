@@ -380,3 +380,18 @@ luac -p *.lua tests/*.lua
 ```
 
 Lua単体テスト、Gitローカルbare repository結合テスト、SVN status／操作テスト、外部設定展開テストを含みます。
+
+## VCS Changes View (Issue #42)
+
+Bind `plugin vcs -- changes` to open the current Git or SVN repository's changed paths in Yazi's native Search View:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "C" ]
+run = "plugin vcs -- changes"
+desc = "Show VCS changes"
+```
+
+The view includes modified, added, deleted, replaced, conflicted, and untracked paths. Clean and ignored paths are omitted. Deleted paths remain selectable even when their physical files are missing.
+
+In this view, Diff, Log, Add, Commit, and Discard use only explicitly selected paths. If nothing is selected, the operation reports `No VCS target selected.` instead of operating on cwd or the whole repository. Git untracked Diff is shown as an all-added diff; untracked files have no Git history and are skipped by Log with a notification.

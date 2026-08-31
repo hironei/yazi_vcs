@@ -9,6 +9,7 @@ local Notify = require(".core-notify")
 local Path = require(".core-path")
 local Runner = require(".core-runner")
 local Scope = require(".core-scope")
+local Context = require(".core-context")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
@@ -39,12 +40,12 @@ function M:setup(opts)
 	local cfg = Config.get()
 	if type(cfg.info) == "table" and cfg.info.enabled then
 		Status:children_add(function()
-			local root = State.root_of(tostring(cx.active.current.cwd))
+			local root = State.root_of(Context.resolve_url(cx.active.current.cwd))
 			if not root then return "" end
 			local record = State.info_of(root)
 			local kind, info = record and record.kind, record and record.data
 			local hovered = cx.active.current.hovered
-			local target = hovered and tostring(hovered.url) or tostring(cx.active.current.cwd)
+			local target = Context.resolve_url(hovered or cx.active.current.cwd)
 			local relpath = kind == "svn" and Path.strip_prefix(root, target) or nil
 			if kind == "svn" and not relpath then return "" end
 			local label = VcsInfo.format(kind, info, relpath)
@@ -54,9 +55,9 @@ function M:setup(opts)
 	end
 	Linemode:children_add(function(self)
 		if not self._file.in_current then return "" end
-		local root = State.root_of(tostring(self._file.url.base or self._file.url.parent))
+		local root = State.root_of(Context.resolve_url(self._file.url.base or self._file.url.parent))
 		if not root then return "" end
-		local rel = Path.strip_prefix(root, tostring(self._file.url))
+		local rel = Path.strip_prefix(root, Context.resolve_url(self._file.url))
 		local name = FileStatus.display_name(rel and State.status_of(root, rel) or nil)
 		if not name or name == "clean" then return "" end
 		local sign = cfg.signs[name]
@@ -75,7 +76,8 @@ end
 ---@return "ok"|"noop"|"error" status
 ---@return string? err
 local function refresh_vcs_status(job)
-	local cwd = job.files[1].url.base or job.files[1].url.parent
+	local first_url = job.files[1].url
+	local cwd = Context.resolve_url(first_url.base or first_url.parent or first_url)
 	local cwd_str, cfg = tostring(cwd), Config.get()
 	local kind, root = Detector.detect(cwd, cfg.detection.priority)
 	if not kind then
@@ -84,7 +86,7 @@ local function refresh_vcs_status(job)
 	end
 	local root_str, queried, seen = root, {}, {}
 	for _, file in ipairs(job.files) do
-		local rel = Path.strip_prefix(root_str, tostring(file.url))
+		local rel = Path.strip_prefix(root_str, Context.resolve_url(file.url))
 		if rel and not seen[rel] then
 			seen[rel] = true
 			queried[#queried + 1] = rel

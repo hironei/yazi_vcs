@@ -16,6 +16,11 @@ return function(t)
 	-- `.url` field, so it must fall through unchanged.
 	t.eq(context.resolve_url("/repo/a.txt"), "/repo/a.txt", "resolve_url passes a Url-shaped entry through unchanged")
 
+	local search_url = { path = "/repo/search.txt", spec = { is_search = true } }
+	t.eq(context.resolve_url({ url = search_url }), "/repo/search.txt", "resolve_url unwraps a Search URL to its physical path")
+	t.truthy(context.is_search(search_url), "is_search recognizes a Search URL")
+	t.falsy(context.is_search("/repo/search.txt"), "is_search rejects a regular path")
+
 	do
 		-- Multiple selection, File-shaped (26.8.15).
 		local snapshot = context.build_snapshot(
@@ -28,6 +33,7 @@ return function(t)
 		t.eq(snapshot.info["/repo/a.txt"], false, "build_snapshot marks a selected file as not-a-directory")
 		t.eq(snapshot.info["/repo/b.txt"], true, "build_snapshot reflects cha.is_dir from tab.current.files")
 		t.eq(snapshot.cwd, "/repo", "build_snapshot carries cwd through unchanged")
+		t.falsy(snapshot.search, "regular snapshot is not a Search View")
 	end
 
 	do
@@ -42,5 +48,16 @@ return function(t)
 		local snapshot = context.build_snapshot({}, { { url = "/repo/a.txt", cha = { is_dir = false } } }, "/repo")
 		t.deep_eq(snapshot.selected, {}, "build_snapshot returns no selected paths when nothing is selected")
 		t.eq(snapshot.info["/repo/a.txt"], false, "build_snapshot still captures current-file metadata with no selection")
+	end
+
+	do
+		local snapshot = context.build_snapshot(
+			{ { url = search_url } },
+			{ { url = search_url, cha = { is_dir = false } } },
+			"/repo",
+			true
+		)
+		t.deep_eq(snapshot.selected, { "/repo/search.txt" }, "Search View selections are physical paths")
+		t.truthy(snapshot.search, "Search View flag is preserved in the snapshot")
 	end
 end

@@ -1915,3 +1915,11 @@ Issue #38 の追加受入条件：
 | preloader/spotter/fetcherのDynamic Lua API | `sxyazi/yazi` PR #4235 |
 | Yazi 26.8.15対応fetcher実装 | `yazi-rs/plugins` `git.yazi/main.lua`（26.8.15対応版、`gh api repos/yazi-rs/plugins/contents/git.yazi/main.lua`で実測） |
 | no-op fetcherの契約（`{}`＝retryなし） | `sxyazi/yazi` `yazi-plugin/preset/plugins/noop.lua`（`gh api repos/sxyazi/yazi/contents/...`で実測） |
+
+## Issue #42 Addendum: VCS Changes View
+
+The repository-wide Changes View is supplied through Yazi's native Search View. It reuses the existing Git/SVN status specifications and parsers, includes untracked paths, omits clean and ignored paths, and preserves deleted paths with synthetic metadata when filesystem metadata is unavailable.
+
+Search URL values are never passed to VCS detection or CLI commands. `core-context.lua` resolves `File` and `Url` values through `.path` and records the Search View context. Normal views keep the existing `selected > cwd` behavior; Search View operations require at least one explicit selection and never fall back to cwd or repository scope.
+
+Diff, Log, Add, Commit, and Discard are supported from the Changes View. Git untracked Diff uses `git diff --no-index` against an empty temporary file and treats exit code 1 as a successful differences result. Git Log excludes untracked selections and notifies the user because they have no history. SVN shares the list and selection UX while retaining SVN-specific command behavior.

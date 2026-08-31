@@ -11,7 +11,7 @@ function M.resolve(cfg)
 	local context = Context.snapshot()
 	return Targets.resolve(context.selected, context.cwd, context.info, function(start)
 		return Detector.detect(Url(start), cfg.detection.priority)
-	end)
+	end, { search = context.search })
 end
 
 function M.resolve_or_notify(cfg)
@@ -21,6 +21,8 @@ function M.resolve_or_notify(cfg)
 		Notify.error("Selected targets do not belong to the same Git or SVN working copy.")
 	elseif reason and reason.code == "outside" then
 		Notify.error("Refusing VCS operation outside the repository: %s", reason.path)
+	elseif reason and reason.code == "no-target" then
+		Notify.warn("No VCS target selected.")
 	else
 		Notify.warn("Not inside a Git or SVN working copy.")
 	end

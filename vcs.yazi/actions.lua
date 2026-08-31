@@ -7,6 +7,7 @@ local Runner = require(".core-runner")
 local Scope = require(".core-scope")
 local State = require(".core-state")
 local Targets = require(".core-targets")
+local Changes = require(".core-changes")
 local Commands = require(".core-commands")
 local Temp = require(".core-temp")
 local GitBackend = require(".backend-git")
@@ -224,6 +225,88 @@ local function has_diff(root, kind, paths, cfg)
 	return Runner.summary(output.stdout, 1) ~= "", output, nil
 end
 
+local function query_changed(root, kind, cfg)
+	local backend = kind == "git" and GitBackend or SvnBackend
+	local output, err = Runner.run(
+		backend.status_spec(root, nil, { ignore_externals = cfg.status.ignore_externals }),
+		cfg.runner.timeout_ms
+	)
+	if not output or not output.status.success then return nil, output, err end
+	local changed = backend.parse_status_output(output.stdout)
+	return changed, output, nil
+end
+
+local function display_output(operation, content, cfg)
+	if Runner.summary(content, 1) == "" then return Notify.info("No output from %s.", operation) end
+	local file, temp_err = temp_output_file(content)
+	if not file then return Notify.error("Cannot create output file: %s", temp_err) end
+	local shown, display_err = display_file(file, cfg)
+	remove_output_file(file)
+	if not shown then return Notify.error("%s output could not be displayed: %s", operation, display_err) end
+end
+
+--- Run a Git diff for selected Changes View entries. `git diff` does not
+--- include untracked files, so each untracked file is compared with a shared
+--- empty temporary file. Git's no-index exit code 1 means "differences found"
+--- and is successful for this operation.
+local function changed_git_diff(root, paths, statuses, cfg)
+	local tracked, untracked = Changes.partition(paths, statuses)
+	local chunks = {}
+	if #tracked > 0 then
+		local output, err = run(root, "git", Commands.git_diff(tracked), cfg)
+		if not output or not output.status.success then return nil, output, err end
+		if output.stdout and output.stdout ~= "" then chunks[#chunks + 1] = output.stdout end
+	end
+	if #untracked == 0 then return table.concat(chunks, "\n"), nil, nil end
+
+	local empty_path, temp_err = temp_file("")
+	if not empty_path then return nil, nil, temp_err end
+	for _, path in ipairs(untracked) do
+		local output, err = run(root, "git", Commands.git_diff_no_index(empty_path, path), cfg)
+		local acceptable = output and (output.status.success or output.status.code == 1)
+		if not acceptable then
+			remove_file(empty_path)
+			return nil, output, err
+		end
+		if output.stdout and output.stdout ~= "" then chunks[#chunks + 1] = output.stdout end
+	end
+	remove_file(empty_path)
+	return table.concat(chunks, "\n"), nil, nil
+end
+
+function M.changes()
+	local cfg = Config.get()
+	local scope = resolve_scope(cfg)
+	if not scope then return end
+	local kind, root = scope.kind, scope.root
+	with_lock(root, "Changes", function()
+		local changed, output, err = query_changed(root, kind, cfg)
+		if not changed then return failure("VCS changes status", output, err) end
+		local entries = Changes.list(changed)
+		if #entries == 0 then return Notify.info("No changed files.") end
+
+		-- Seed the shared state so Linemode can draw status signs immediately.
+		-- The fetcher will refresh this state again after the Search View opens.
+		State.replace(root, root, changed, nil)
+		local search_cwd = Url(root):into_search("VCS Changes")
+		local id = ya.id("ft")
+		ya.emit("cd", { Url(search_cwd), source = "search" })
+		ya.emit("update_files", { op = fs.op("part", { id = id, url = Url(search_cwd), files = {} }) })
+
+		local files = {}
+		for _, entry in ipairs(entries) do
+			local url = search_cwd:join(entry.path)
+			-- Deleted/missing paths have no filesystem metadata. A synthetic
+			-- regular-file Cha keeps them in Search View and selectable.
+			local cha = fs.cha(url, true) or Cha { mode = tonumber("100644", 8) }
+			files[#files + 1] = File { url = url, cha = cha }
+		end
+		local dir = File { url = search_cwd, cha = Cha { mode = tonumber("100644", 8) } }
+		ya.emit("update_files", { op = fs.op("part", { id = id, url = dir.url, files = files }) })
+		ya.emit("update_files", { op = fs.op("done", { id = id, file = dir }) })
+	end, true)
+end
+
 function M.update()
 	local cfg = Config.get()
 	local scope = resolve_scope(cfg)
@@ -320,6 +403,41 @@ local function view_operation(operation, config_section, kind_builder, external)
 		local paths, absolute = scope.paths, scope.absolute
 		if not paths then return end
 		local command_paths = scope.repository and {} or paths
+		local external_absolute = absolute
+		local statuses
+		if scope.search then
+			statuses = {}
+			for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
+		end
+		if not external and scope.search and config_section == "diff" and kind == "git" then
+			local _, untracked = Changes.partition(paths, statuses)
+			if #untracked > 0 then
+				local content, output, err = changed_git_diff(root, paths, statuses, cfg)
+				if content == nil then return failure(operation, output, err) end
+				return display_output(operation, content, cfg)
+			end
+		end
+		if scope.search and config_section == "log" and kind == "git" then
+			local tracked, untracked = Changes.partition(paths, statuses)
+			if #untracked > 0 then Notify.warn("Untracked files have no history: " .. table.concat(untracked, ", ")) end
+			if #tracked == 0 then return Notify.info("No history for selected files.") end
+			command_paths = tracked
+			external_absolute = {}
+			for index, path in ipairs(paths) do
+				if statuses[path] ~= "untracked" then external_absolute[#external_absolute + 1] = absolute[index] end
+			end
+		elseif scope.search and config_section == "diff" and kind == "git" then
+			local tracked, untracked = Changes.partition(paths, statuses)
+			if #untracked > 0 then
+				if #tracked == 0 then return Notify.info("External Diff cannot display untracked-only selections.") end
+				Notify.warn("Untracked files were excluded from external Diff: " .. table.concat(untracked, ", "))
+				command_paths = tracked
+				external_absolute = {}
+				for index, path in ipairs(paths) do
+					if statuses[path] ~= "untracked" then external_absolute[#external_absolute + 1] = absolute[index] end
+				end
+			end
+		end
 		local section = cfg[config_section] or {}
 		if external then
 			if config_section == "diff" then
@@ -327,7 +445,7 @@ local function view_operation(operation, config_section, kind_builder, external)
 				if changed == nil then return failure(operation .. " check", output, err) end
 				if not changed then return Notify.info("%s: no differences for the selected scope.", operation) end
 			end
-			return run_external(root, operation .. " (external)", section[kind .. "_external"], absolute, cfg, scope.repository)
+			return run_external(root, operation .. " (external)", section[kind .. "_external"], external_absolute, cfg, scope.repository)
 		end
 		local configured = section[kind .. "_cli"]
 		if scope.repository and config_section == "log" and kind == "git" and section.git_cli_all then
@@ -344,11 +462,7 @@ local function view_operation(operation, config_section, kind_builder, external)
 		local output, err = Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
 		if not output or not output.status.success then return failure(operation, output, err) end
 		if Runner.summary(output.stdout, 1) == "" then return Notify.info("No output from %s.", operation) end
-		local file, temp_err = temp_output_file(output.stdout)
-		if not file then return Notify.error("Cannot create output file: %s", temp_err) end
-		local shown, display_err = display_file(file, cfg)
-		remove_output_file(file)
-		if not shown then return Notify.error("%s output could not be displayed: %s", operation, display_err) end
+		display_output(operation, output.stdout, cfg)
 	end, true)
 end
 
@@ -475,6 +589,7 @@ end
 function M.entry(action, args)
 	local handlers = {
 		update = M.update,
+		changes = M.changes,
 		add = M.add,
 		commit = M.commit,
 		diff = function() return M.diff(named_external(args)) end,

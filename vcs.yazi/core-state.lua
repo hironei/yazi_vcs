@@ -17,8 +17,21 @@ M.remember = ya.sync(function(state, cwd, root, changed, vcs_info)
 	state.vcs_info = state.vcs_info or {}
 	state.dirs[cwd] = root
 	state.roots[root] = state.roots[root] or {}
-	state.vcs_info[root] = vcs_info
+	-- A Changes View seeds status before metadata is necessarily available.
+	-- Preserve an already fetched branch/URL record when no new metadata exists.
+	state.vcs_info[root] = vcs_info or state.vcs_info[root]
 	status.merge(state.roots[root], changed)
+	ui.render()
+end)
+
+M.replace = ya.sync(function(state, cwd, root, changed, vcs_info)
+	state.dirs = state.dirs or {}
+	state.roots = state.roots or {}
+	state.vcs_info = state.vcs_info or {}
+	state.dirs[cwd] = root
+	state.roots[root] = {}
+	state.vcs_info[root] = vcs_info or state.vcs_info[root]
+	status.merge(state.roots[root], changed or {})
 	ui.render()
 end)
 

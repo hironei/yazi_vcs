@@ -1,5 +1,12 @@
 # 完了記録
 
+## 2026-08-31 — VCS Changes View (Issue #42)
+
+- Added `plugin vcs -- changes`, backed by a repository-wide Git/SVN status query and Yazi's native Search View.
+- Reused the existing backend parsers, included untracked paths, omitted clean/ignored paths, and retained deleted paths with synthetic metadata.
+- Normalized Search URLs to physical paths and made Search View Diff, Log, Add, Commit, and Discard selection-only; Git untracked Diff uses `--no-index`, and untracked Log entries are reported and skipped.
+- Added unit and Git integration coverage. Native Windows Lua tests passed; real Yazi UI and Windows/Git Bash manual checks remain pending.
+
 ## 2026-08-20 — VCS操作のselected／cwd scope統一（Issue #36）
 
 - VCS操作開始時のselected／cwd／file metadata snapshotと、`selected > cwd`の共通scope／repository resolverを追加
