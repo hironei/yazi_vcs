@@ -121,6 +121,10 @@ on = [ "g", "v", "L" ]
 run = "plugin vcs -- log --external"
 desc = "External VCS log"
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "v" ]
+run = "plugin vcs -- log-preview"
+desc = "Toggle VCS log preview"
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "u" ]
 run = "plugin vcs -- copy-url"
 desc = "Copy VCS URL"
@@ -129,6 +133,33 @@ on = [ "g", "v", "U" ]
 run = "plugin vcs -- copy-url-revision"
 desc = "Copy VCS URL with revision"
 ```
+
+## VCS Log Preview
+
+The optional `plugin vcs -- log-preview` action toggles a per-tab split in the
+Preview area. The upper half remains the normal Yazi preview and the lower half
+shows up to the five newest Git or SVN history entries for the hovered file or
+directory. Moving the hover refreshes the lower half. Pressing the binding
+again restores the full normal preview.
+
+Register the custom previewer in `<YAZI_CONFIG_HOME>/yazi.toml`; the plugin does
+not register keys or previewer rules automatically:
+
+```toml
+[[plugin.prepend_previewers]]
+url = "*"
+run = "vcs"
+```
+
+Place more specific user previewer rules before this catch-all rule. The
+previewer delegates supported folders, text/code, JSON, images, video, PDF,
+archives, fonts, empty files, virtual filesystems, and fallback files to the
+standard Yazi preview modules. For files outside a repository, untracked files,
+missing history, and command failures, the lower half displays an explanation
+while preserving the upper preview.
+
+The existing `g v p` Push and `g v l` CLI Log bindings are unchanged. Restart
+Yazi after changing `yazi.toml` or installing the updated plugin.
 
 既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時は現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。未選択のcwd scopeでAddを実行する場合は、配下を広く追加するため`add`の入力確認が必要です。`copy-url`は選択対象（複数選択時は先頭、未選択時はcwd）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
 

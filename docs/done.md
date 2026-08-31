@@ -1,5 +1,12 @@
 # 完了記録
 
+## 2026-08-31 — Hovered-File VCS Log Preview Pane
+
+- Added the opt-in `plugin vcs -- log-preview` action and documented `g v v` without changing the existing Push (`g v p`) or CLI Log (`g v l`) bindings.
+- Split the existing Yazi Preview area vertically into equal normal-preview and log areas, refreshing the hovered item's Git/SVN history with at most five one-line entries.
+- Added pure command/parser/message helpers, per-tab toggle state, standard Yazi preview delegation, Git/SVN integration coverage, and English setup documentation including the required `yazi.toml` previewer rule.
+- Native Windows Lua tests passed: 341 passed / 0 failed; `luac -p` passed. A temporary Yazi 26.8.15 configuration launched successfully and the toggle action completed without Lua errors; full visual Git/SVN/hover-movement acceptance remains a manual follow-up.
+
 ## 2026-08-31 — VCS Changes View (Issue #42)
 
 - Added `plugin vcs -- changes`, backed by a repository-wide Git/SVN status query and Yazi's native Search View.

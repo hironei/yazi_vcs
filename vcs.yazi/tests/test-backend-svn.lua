@@ -290,5 +290,22 @@ return function(t)
 	t.eq(changed["tracked.txt"], "modified", "[integration] real svn: modified file detected")
 	t.eq(changed["new.txt"], "untracked", "[integration] real svn: unversioned file detected")
 
+	local log_preview = require("core-log-preview")
+	for index = 1, 6 do
+		runwc(("echo revision %d %s>> tracked.txt"):format(index, string.rep("x", index)))
+		runwc(("svn commit -q --non-interactive -m \"preview %d\""):format(index))
+	end
+	local function capture_svn(args)
+		local quoted = {}
+		for _, arg in ipairs(args) do quoted[#quoted + 1] = t.shell_quote(arg) end
+		local log_proc = t.capture_in_dir(wc, "svn " .. table.concat(quoted, " "))
+		local log_out = log_proc:read("*a")
+		log_proc:close()
+		return log_out
+	end
+	local preview_entries = log_preview.parse_svn(capture_svn(log_preview.svn_args("tracked.txt")))
+	t.eq(#preview_entries, 5, "[integration] real svn log preview returns only the five newest entries")
+	t.truthy(preview_entries[1]:match("preview 6"), "[integration] real svn log preview keeps newest-first order")
+
 	t.remove_tree(dir)
 end
