@@ -22,3 +22,32 @@ VCS操作の対象は、selectedがあればselected、なければcwdです。h
 `plugin vcs -- changes` opens the resolved repository's changed files in Yazi's native Search View. It reuses the Git/SVN status parser, includes untracked files, excludes clean and ignored files, and keeps deleted paths selectable with synthetic metadata when the physical file is gone.
 
 Search URLs are normalized to physical paths before VCS detection or CLI execution. In the Changes View, Diff, Log, Add, Commit, and Discard use only explicit selections. An empty selection does not fall back to cwd or the repository. Git untracked Diff is rendered as an all-added no-index diff; untracked files are excluded from Git Log with a notification.
+
+## VCS Log Preview
+
+Add the following user-defined key binding to toggle the log preview pane:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "v" ]
+run = "plugin vcs -- log-preview"
+desc = "Toggle VCS log preview"
+```
+
+The action splits the existing Preview area vertically into equal halves. The
+upper half uses the normal Yazi preview for the hovered item; the lower half
+shows up to five newest Git or SVN entries for that item. Moving the hover
+updates the log automatically, and invoking the action again disables the
+split. The existing `g v p` Push and `g v l` CLI Log bindings remain unchanged.
+
+The custom previewer must also be registered by the user in `yazi.toml`:
+
+```toml
+[[plugin.prepend_previewers]]
+url = "*"
+run = "vcs"
+```
+
+Keep any more-specific previewer rules before this catch-all rule. The lower
+pane reports repository, history, untracked-file, and command errors without
+removing the upper preview. Restart Yazi after changing the configuration.

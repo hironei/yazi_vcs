@@ -395,3 +395,35 @@ desc = "Show VCS changes"
 The view includes modified, added, deleted, replaced, conflicted, and untracked paths. Clean and ignored paths are omitted. Deleted paths remain selectable even when their physical files are missing.
 
 In this view, Diff, Log, Add, Commit, and Discard use only explicitly selected paths. If nothing is selected, the operation reports `No VCS target selected.` instead of operating on cwd or the whole repository. Git untracked Diff is shown as an all-added diff; untracked files have no Git history and are skipped by Log with a notification.
+
+## VCS Log Preview
+
+The log preview is opt-in. Add this binding to `<YAZI_CONFIG_HOME>/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "v" ]
+run = "plugin vcs -- log-preview"
+desc = "Toggle VCS log preview"
+```
+
+Also register the previewer in `<YAZI_CONFIG_HOME>/yazi.toml`:
+
+```toml
+[[plugin.prepend_previewers]]
+url = "*"
+run = "vcs"
+```
+
+The `g v v` action toggles a vertical 50:50 split of the existing Preview
+area. The upper half remains the normal Yazi preview, while the lower half
+shows up to five newest history entries for the hovered file or directory.
+Hovering another item refreshes the log; pressing `g v v` again restores the
+full normal preview. Git entries show short hash and subject. SVN entries show
+revision, author, date, and subject on one line.
+
+The lower pane explains when the item is outside Git/SVN, untracked, has no
+history, or the log command fails. Supported standard preview categories are
+delegated to Yazi's preview modules where available. Put user-specific
+previewer rules before the catch-all `url = "*"` rule. The existing `g v p`
+Push and `g v l` CLI Log operations are unchanged.

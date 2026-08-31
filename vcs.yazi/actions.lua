@@ -16,6 +16,11 @@ local VcsInfo = require(".core-vcs-info")
 
 local M = {}
 
+local current_hovered_url = ya.sync(function()
+	local hovered = cx.active.current.hovered
+	return hovered and hovered.url, cx.tabs.idx
+end)
+
 local function trace(stage)
 	if os.getenv("VCS_YAZI_TRACE") == "1" and type(ya.err) == "function" then
 		ya.err("vcs trace: " .. stage)
@@ -478,6 +483,14 @@ function M.log(external)
 	end, external)
 end
 
+function M.log_preview()
+	local hovered_url, tab_index = current_hovered_url()
+	if not hovered_url then return Notify.warn("No hovered item to preview.") end
+	local enabled = State.toggle_log_preview(tab_index or 1)
+	ya.emit("peek", { 0, only_if = hovered_url })
+	Notify.info(enabled and "VCS log preview enabled." or "VCS log preview disabled.")
+end
+
 function M.discard()
 	local cfg = Config.get()
 	local scope = resolve_scope(cfg)
@@ -594,6 +607,7 @@ function M.entry(action, args)
 		commit = M.commit,
 		diff = function() return M.diff(named_external(args)) end,
 		log = function() return M.log(named_external(args)) end,
+		["log-preview"] = M.log_preview,
 		discard = M.discard,
 		["copy-url"] = M.copy_url,
 		["copy-url-revision"] = M.copy_url_revision,
