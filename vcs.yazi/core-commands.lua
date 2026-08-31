@@ -39,6 +39,10 @@ function M.git_diff(paths)
 	return append_targets({ "--no-pager", "diff" }, paths)
 end
 
+function M.git_diff_no_index(empty_path, target)
+	return { "--no-pager", "diff", "--no-index", "--", empty_path, target }
+end
+
 function M.svn_diff(paths)
 	return append_targets({ "diff" }, paths)
 end

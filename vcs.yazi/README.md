@@ -16,3 +16,9 @@ Phase 4の操作:
 SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-wrapper.sh`](../examples/svn-difft-wrapper.sh)を参照してください。
 
 VCS操作の対象は、selectedがあればselected、なければcwdです。hoveredだけでは対象を変更しません。cwdがVCS外でも、VCSリポジトリのディレクトリをselectedすればそのリポジトリを操作できます。異なるリポジトリを複数selectedした操作は拒否します。未selectedのAdd／Commit／Discardはcwd配下を広く対象にし得るため、対象範囲を表示してtyped confirmationを要求します。既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。
+
+## VCS Changes View
+
+`plugin vcs -- changes` opens the resolved repository's changed files in Yazi's native Search View. It reuses the Git/SVN status parser, includes untracked files, excludes clean and ignored files, and keeps deleted paths selectable with synthetic metadata when the physical file is gone.
+
+Search URLs are normalized to physical paths before VCS detection or CLI execution. In the Changes View, Diff, Log, Add, Commit, and Discard use only explicit selections. An empty selection does not fall back to cwd or the repository. Git untracked Diff is rendered as an all-added no-index diff; untracked files are excluded from Git Log with a notification.

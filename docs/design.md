@@ -161,3 +161,13 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 ## 10. 検証境界
 
 WindowsネイティブLuaでは純粋テスト、Git bare repository、SVN working copy統合を実行する。実Yazi画面、認証入力、外部TUI、Windows GUI、WSL/Git Bashの実変換は別途手動確認とし、自動テスト成功と混同しない。
+
+## Issue #42: VCS Changes View
+
+The Changes action resolves the repository through the existing `core-scope` / `core-targets` semantics, then runs one repository-wide backend status query. `core-changes.lua` filters clean, ignored, and bookkeeping-only entries and returns a stable path-ordered list. The same backend parser is used by the fetcher and the Changes action.
+
+The action creates a Yazi Search URL with `Url(root):into_search("VCS Changes")`, emits the standard `cd` and `update_files` events, and constructs `File` entries from changed paths. Existing metadata is obtained with `fs.cha`; deleted or missing paths use synthetic regular-file `Cha` metadata so they remain visible and selectable.
+
+`core-context.lua` treats `url.path` as the physical path for both regular and Search URLs and records whether the current context is a Search View. `core-scope.lua` passes that flag into target resolution; an empty Search View selection returns `no-target` and cannot fall back to cwd. Add, Commit, and Discard therefore reuse their existing confirmation and safety policies while operating on selected physical paths only.
+
+For Git Diff, selected untracked paths are compared with a shared empty temporary file through `git diff --no-index`. Exit code 1 is accepted as the expected "differences found" result. Git Log filters untracked selections and reports that they have no history. SVN uses the shared changed-path and selection flow without applying Git-specific no-index behavior.

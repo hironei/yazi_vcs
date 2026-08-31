@@ -28,7 +28,11 @@ end
 ---@param detect fun(start_path:string): "git"|"svn"|nil, string?
 ---@return table? scope
 ---@return table? reason
-function M.resolve(selected, cwd, info, detect)
+function M.resolve(selected, cwd, info, detect, options)
+	options = options or {}
+	if options.search and (not selected or #selected == 0) then
+		return nil, { code = "no-target" }
+	end
 	local absolute, source, explicit = M.choose(selected, cwd)
 	if #absolute == 0 then return nil, { code = "no-target" } end
 
@@ -62,6 +66,7 @@ function M.resolve(selected, cwd, info, detect)
 		kind = kind,
 		root = root,
 		repository = repository,
+		search = options.search == true,
 		info = info or {},
 	}, nil
 end

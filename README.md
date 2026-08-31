@@ -187,3 +187,18 @@ luac -p *.lua tests/*.lua
 Lua単体テスト、Gitローカルbare repository結合テスト、外部設定展開テストを含みます。実Yazi UI、認証入力、Windows GUI、WSL／Git Bashの実環境、SVN実CLIは別途確認が必要です。
 
 設定のマップは既定値へ深くマージされますが、配列（コマンド引数や`editor.args`／`pager.args`）は指定した配列全体で置き換えられます。非対話型のstatus、Diff、Log、メタデータ取得には`runner.timeout_ms`が適用されます。
+
+## VCS Changes View
+
+Run `plugin vcs -- changes` to show the changed files of the resolved Git or SVN working copy in Yazi's native Search View. The view reuses the backend status parser, includes untracked files, excludes clean and ignored files, and keeps deleted files selectable even when they no longer exist on disk.
+
+Search View selections are converted back to physical filesystem paths before any VCS command runs. In this view, Diff, Log, Add, Commit, and Discard operate only on explicitly selected entries; with no selection they show `No VCS target selected.` and never fall back to the repository scope. Git Diff renders untracked files as an all-added no-index diff, while Git Log reports and skips untracked files.
+
+Example key binding:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "C" ]
+run = "plugin vcs -- changes"
+desc = "Show VCS changes"
+```
