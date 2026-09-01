@@ -25,29 +25,21 @@ Search URLs are normalized to physical paths before VCS detection or CLI executi
 
 ## VCS Log Preview
 
-Add the following user-defined key binding to toggle the log preview pane:
+Add the following user-defined key binding to show a temporary log notification:
 
 ```toml
 [[mgr.prepend_keymap]]
 on = [ "g", "v", "v" ]
 run = "plugin vcs -- log-preview"
-desc = "Toggle VCS log preview"
+desc = "Show VCS log notification"
 ```
 
-The action splits the existing Preview area vertically into equal halves. The
-upper half uses the normal Yazi preview for the hovered item; the lower half
-shows up to five newest Git or SVN entries for that item. Moving the hover
-updates the log automatically, and invoking the action again disables the
-split. The existing `g v p` Push and `g v l` CLI Log bindings remain unchanged.
+The action reads the currently hovered file or directory and shows a
+multi-line notification for eight seconds with up to five newest Git or SVN
+entries. It does not alter the Preview area and does not refresh when the
+cursor moves; invoke it again for another item. The existing `g v p` Push and
+`g v l` CLI Log bindings remain unchanged.
 
-The custom previewer must also be registered by the user in `yazi.toml`:
-
-```toml
-[[plugin.prepend_previewers]]
-url = "*"
-run = "vcs"
-```
-
-Keep any more-specific previewer rules before this catch-all rule. The lower
-pane reports repository, history, untracked-file, and command errors without
-removing the upper preview. Restart Yazi after changing the configuration.
+No custom previewer registration is required. An old catch-all previewer rule
+for `run = "vcs"` remains safe because the plugin delegates it to the normal
+Yazi previewer.

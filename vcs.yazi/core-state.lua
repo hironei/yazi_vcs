@@ -93,15 +93,4 @@ M.info_of = ya.sync(function(state, root)
 	return state.vcs_info[root]
 end)
 
-M.log_preview_enabled = ya.sync(function(state, tab_index)
-	state.log_preview = state.log_preview or {}
-	return state.log_preview[tab_index] == true
-end)
-
-M.toggle_log_preview = ya.sync(function(state, tab_index)
-	state.log_preview = state.log_preview or {}
-	state.log_preview[tab_index] = not (state.log_preview[tab_index] == true)
-	return state.log_preview[tab_index]
-end)
-
 return M

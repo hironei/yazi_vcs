@@ -1,5 +1,5 @@
 -- core-preview.lua
--- Dispatch the upper half of the log preview to the Yazi preset previewer
+-- Dispatch legacy custom-preview requests to the Yazi preset previewer
 -- corresponding to the current file. The mapping follows Yazi 26.8.15's
 -- shipped previewer categories and is intentionally isolated here.
 local M = {}

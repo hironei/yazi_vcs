@@ -14,55 +14,10 @@ local Actions = require(".actions")
 local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
 local Fetcher = require(".core-fetcher")
-local LogPreview = require(".core-log-preview")
 local Preview = require(".core-preview")
 
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
-
-local active_tab_index = ya.sync(function() return cx.tabs.idx end)
-
-local function preview_job_with_area(job, area)
-	return Preview.copy_job(job, area)
-end
-
-local function render_log(job, area)
-	local lines = { "VCS Log (latest 5)" }
-	local file = job.file or {}
-	local path = tostring(file.path or Context.resolve_url(file.url) or "")
-	if path == "" then
-		lines[#lines + 1] = LogPreview.message(nil, "no-item")
-	else
-		local cfg = Config.get()
-		local is_dir = file.cha and file.cha.is_dir == true
-		local start = is_dir and path or Path.parent(path)
-		local kind, root = Detector.detect(Url(start), cfg.detection.priority)
-		if not kind then
-			lines[#lines + 1] = LogPreview.message(nil, "outside-repository")
-		else
-			local relative = Path.strip_prefix(root, path)
-			if not relative then
-				lines[#lines + 1] = LogPreview.message(nil, "outside-root")
-			elseif State.status_of(root, relative) == "untracked" then
-				lines[#lines + 1] = LogPreview.message(nil, "untracked")
-			else
-				local args = LogPreview.args(kind, relative)
-				local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
-				if not output or not output.status.success then
-					lines[#lines + 1] = LogPreview.message(kind, "command-failed", Runner.error_text(output, err))
-				else
-					local entries = LogPreview.parse(kind, output.stdout)
-					if #entries == 0 then
-						lines[#lines + 1] = LogPreview.message(nil, "empty")
-					else
-						for _, entry in ipairs(entries) do lines[#lines + 1] = entry end
-					end
-				end
-			end
-		end
-	end
-	ya.preview_widget(preview_job_with_area(job, area), ui.Text(table.concat(lines, "\n")):area(area))
-end
 
 local function fetch_vcs_info(kind, root, cfg)
 	local backend = BACKENDS[kind]
@@ -175,24 +130,13 @@ function M:entry(job)
 end
 
 function M:peek(job)
-	if not State.log_preview_enabled(active_tab_index()) then return Preview.peek(job) end
-	local areas = ui.Layout()
-		:direction(ui.Layout.VERTICAL)
-		:constraints({ ui.Constraint.Percentage(50), ui.Constraint.Percentage(50) })
-		:split(job.area)
-	if #areas < 2 or areas[1].h <= 0 or areas[2].h <= 0 then return Preview.peek(job) end
-	Preview.peek(job, areas[1])
-	render_log(job, areas[2])
+	-- Keep old catch-all previewer registrations working by delegating to the
+	-- standard Yazi preview without modifying its area or render lifecycle.
+	return Preview.peek(job)
 end
 
 function M:seek(job)
-	if not State.log_preview_enabled(active_tab_index()) then return Preview.seek(job) end
-	local areas = ui.Layout()
-		:direction(ui.Layout.VERTICAL)
-		:constraints({ ui.Constraint.Percentage(50), ui.Constraint.Percentage(50) })
-		:split(job.area)
-	if #areas < 1 or areas[1].h <= 0 then return end
-	Preview.seek(job, areas[1])
+	return Preview.seek(job)
 end
 
 function M.refresh_status()

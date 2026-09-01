@@ -1924,23 +1924,42 @@ Search URL values are never passed to VCS detection or CLI commands. `core-conte
 
 Diff, Log, Add, Commit, and Discard are supported from the Changes View. Git untracked Diff uses `git diff --no-index` against an empty temporary file and treats exit code 1 as a successful differences result. Git Log excludes untracked selections and notifies the user because they have no history. SVN shares the list and selection UX while retaining SVN-specific command behavior.
 
-## Feature Addendum: Hovered-File Log Preview Pane
+## Feature Addendum: Temporary Hovered-File VCS Log Notification
 
-The log preview feature is opt-in through a user-defined manager key binding. The repository documents `g v v` as the example binding for `plugin vcs -- log-preview`; it must not modify the user's keymap automatically. The existing `g v p` Push and `g v l` CLI Log examples remain unchanged.
+The VCS log action is opt-in through a user-defined manager key binding. The
+repository documents `g v v` as the example binding for `plugin vcs --
+log-preview`; it must not modify the user's keymap automatically. The existing
+`g v p` Push and `g v l` CLI Log examples remain unchanged.
 
-When the action is toggled on, the configured VCS previewer splits the existing preview rectangle vertically into two equal areas. The upper area renders the normal Yazi preview and the lower area renders up to five one-line history entries for the currently hovered filesystem item. Moving the hover while the feature is enabled causes Yazi to invoke the previewer again for the new item. Toggling the action off restores the normal preview over the full rectangle.
+When invoked, the action reads the currently hovered filesystem item and shows
+a temporary eight-second multi-line notification containing up to five newest
+Git or SVN history entries. It does not alter the Preview area, install a
+previewer rule, or maintain per-tab toggle state. A later invocation is needed
+to show the log for a different hovered item.
 
 Git history uses `git --no-pager log -n 5 --format=%h%x09%s -- <relative-path>`. SVN history uses `svn log --xml -l 5 -- <relative-path>`. Paths are passed as separate command arguments and are always relative to the detected repository root. Git entries render the short revision and subject. SVN entries render the revision, author, ISO date, and the first non-empty message line.
 
-The feature uses the same detector and `runner.timeout_ms` boundary as existing read-only VCS operations. It never waits for authentication, never changes the working copy, and never emits credentials. VCS detection failure, command failure, empty history, and untracked files produce a bounded explanatory message in the lower area while preserving the upper preview.
+The feature uses the same detector and `runner.timeout_ms` boundary as existing
+read-only VCS operations. It never waits for authentication, never changes the
+working copy, and never emits credentials. VCS detection failure, command
+failure, empty history, and untracked files produce a bounded explanatory
+message in the notification.
 
-The preview adapter delegates the standard Yazi preview categories supported by the repository's Yazi 26.8.15 compatibility target (folders, code/text, JSON, images, video, PDF, archives, fonts, empty files, virtual files, and fallback file classification) into the upper rectangle. Custom user previewer precedence remains controlled by the order of the user's `yazi.toml` rules.
+For backward compatibility, if an older user configuration still routes
+`url = "*"` to `run = "vcs"` as a custom previewer, the plugin delegates that
+request to the standard Yazi preview adapter without adding a log widget.
 
 Acceptance criteria:
 
-1. `plugin vcs -- log-preview` toggles the per-tab log preview state and requests a preview refresh for the current item.
-2. The lower area contains no more than five entries and never runs a command when the feature is disabled.
+1. `plugin vcs -- log-preview` shows one temporary notification for the current
+   hovered item and does not change standard Preview rendering.
+2. The notification shows at most five newest Git or SVN entries with the
+   required Git/SVN one-line formats.
 3. Git and SVN command construction preserves spaces, Japanese characters, leading-dash names, and repository boundaries.
-4. Normal preview behavior remains available when the feature is disabled and for all supported standard preview categories when enabled.
-5. Existing CLI Log, Push, fetcher, and status behavior is unchanged.
-6. Unit and integration tests cover command construction, output parsing, state toggling, empty/error/untracked cases, and the existing regression suite remains green.
+4. The notification reports repository absence, untracked files, empty history,
+   and command failures without blocking normal Yazi navigation.
+5. Existing CLI Log, Push, fetcher, status, and standard Preview behavior remain
+   available.
+6. Unit and integration tests cover command construction, output parsing,
+   notification formatting, empty/error/untracked cases, and the existing
+   regression suite remains green.

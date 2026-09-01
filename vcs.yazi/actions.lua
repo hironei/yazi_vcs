@@ -1,13 +1,16 @@
 -- actions.lua
 -- Phase 2 common VCS operations plus Phase 4 external viewers.
 local Config = require(".config")
+local Detector = require(".core-detector")
 local External = require(".core-external")
 local Notify = require(".core-notify")
+local Path = require(".core-path")
 local Runner = require(".core-runner")
 local Scope = require(".core-scope")
 local State = require(".core-state")
 local Targets = require(".core-targets")
 local Changes = require(".core-changes")
+local LogPreview = require(".core-log-preview")
 local Commands = require(".core-commands")
 local Temp = require(".core-temp")
 local GitBackend = require(".backend-git")
@@ -18,7 +21,7 @@ local M = {}
 
 local current_hovered_url = ya.sync(function()
 	local hovered = cx.active.current.hovered
-	return hovered and hovered.url, cx.tabs.idx
+	return hovered and hovered.url, hovered and hovered.cha and hovered.cha.is_dir == true
 end)
 
 local function trace(stage)
@@ -484,11 +487,44 @@ function M.log(external)
 end
 
 function M.log_preview()
-	local hovered_url, tab_index = current_hovered_url()
+	local hovered_url, is_dir = current_hovered_url()
 	if not hovered_url then return Notify.warn("No hovered item to preview.") end
-	local enabled = State.toggle_log_preview(tab_index or 1)
-	ya.emit("peek", { 0, only_if = hovered_url })
-	Notify.info(enabled and "VCS log preview enabled." or "VCS log preview disabled.")
+
+	local cfg = Config.get()
+	local path = tostring(hovered_url)
+	local start = is_dir and path or Path.parent(path)
+	local root = State.root_of(start)
+	local record = root and State.info_of(root)
+	local kind = record and record.kind
+	if not kind or not root then kind, root = Detector.detect(Url(start), cfg.detection.priority) end
+
+	local lines = { "VCS log (latest 5)" }
+	if not kind or not root then
+		lines[#lines + 1] = LogPreview.message(nil, "outside-repository")
+	else
+		local relative = Path.strip_prefix(root, path)
+		if not relative then
+			lines[#lines + 1] = LogPreview.message(nil, "outside-root")
+		elseif State.status_of(root, relative) == "untracked" then
+			lines[#lines + 1] = LogPreview.message(nil, "untracked")
+		else
+			local args = LogPreview.args(kind, relative)
+			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+			if not output or not output.status.success then
+				local detail = Runner.error_text(output, err):gsub("[\r\n]+", " ")
+				lines[#lines + 1] = LogPreview.message(kind, "command-failed", detail)
+			else
+				local entries = LogPreview.parse(kind, output.stdout)
+				if #entries == 0 then
+					lines[#lines + 1] = LogPreview.message(nil, "empty")
+				else
+					for _, entry in ipairs(entries) do lines[#lines + 1] = entry end
+				end
+			end
+		end
+	end
+
+	Notify.history(table.concat(lines, "\n"))
 end
 
 function M.discard()
