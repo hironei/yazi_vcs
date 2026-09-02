@@ -398,32 +398,23 @@ In this view, Diff, Log, Add, Commit, and Discard use only explicitly selected p
 
 ## VCS Log Preview
 
-The log preview is opt-in. Add this binding to `<YAZI_CONFIG_HOME>/keymap.toml`:
+The temporary VCS log notification is opt-in. Add this binding to
+`<YAZI_CONFIG_HOME>/keymap.toml`:
 
 ```toml
 [[mgr.prepend_keymap]]
 on = [ "g", "v", "v" ]
 run = "plugin vcs -- log-preview"
-desc = "Toggle VCS log preview"
+desc = "Show VCS log notification"
 ```
 
-Also register the previewer in `<YAZI_CONFIG_HOME>/yazi.toml`:
-
-```toml
-[[plugin.prepend_previewers]]
-url = "*"
-run = "vcs"
-```
-
-The `g v v` action toggles a vertical 50:50 split of the existing Preview
-area. The upper half remains the normal Yazi preview, while the lower half
-shows up to five newest history entries for the hovered file or directory.
-Hovering another item refreshes the log; pressing `g v v` again restores the
-full normal preview. Git entries show short hash and subject. SVN entries show
+The `g v v` action reads the currently hovered file or directory and shows a
+temporary eight-second notification containing the five newest history entries.
+It does not modify the Preview area, register a custom previewer, or refresh
+when the cursor moves. Press the binding again to show the log for a different
+item. Git entries show the short hash and subject. SVN entries show the
 revision, author, date, and subject on one line.
 
-The lower pane explains when the item is outside Git/SVN, untracked, has no
-history, or the log command fails. Supported standard preview categories are
-delegated to Yazi's preview modules where available. Put user-specific
-previewer rules before the catch-all `url = "*"` rule. The existing `g v p`
-Push and `g v l` CLI Log operations are unchanged.
+The notification explains when the item is outside Git/SVN, untracked, has no
+history, or the log command fails. The existing `g v p` Push and `g v l` CLI Log
+operations are unchanged.

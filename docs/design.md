@@ -172,18 +172,39 @@ The action creates a Yazi Search URL with `Url(root):into_search("VCS Changes")`
 
 For Git Diff, selected untracked paths are compared with a shared empty temporary file through `git diff --no-index`. Exit code 1 is accepted as the expected "differences found" result. Git Log filters untracked selections and reports that they have no history. SVN uses the shared changed-path and selection flow without applying Git-specific no-index behavior.
 
-## Feature Addendum: Hovered-File Log Preview Pane
+## Feature Addendum: Temporary Hovered-File VCS Log Notification
 
-The feature adds two Yazi-facing capabilities to the existing `vcs` module: the functional action `log-preview` and the custom previewer methods `peek` and `seek`. The action toggles a per-tab flag in `core-state.lua` and emits a fine-grained `peek` event for the currently hovered URL. The previewer reads that flag, delegates the normal preview into the upper half when disabled or enabled, and adds a lower-half log widget only when enabled.
+The feature adds the functional `log-preview` action to the existing `vcs`
+module. The action resolves the current hovered item through a `ya.sync`
+closure, runs the bounded read-only Git or SVN log command, and displays the
+result through the standard `ya.notify` API. It has no custom Previewer layout,
+per-tab toggle state, or hover polling loop.
 
-The log domain logic belongs in a new pure module, `core-log-preview.lua`. It owns Git and SVN argument construction with a fixed limit of five entries, Git tab-separated output parsing, SVN XML log-entry parsing, entity decoding, first-message-line selection, and one-line formatting.
+The log domain logic belongs in `core-log-preview.lua`. It owns Git and SVN
+argument construction with a fixed limit of five entries, Git tab-separated
+output parsing, SVN XML log-entry parsing, entity decoding, first-message-line
+selection, and one-line formatting.
 
-The Yazi-dependent adapter resolves `job.file.path` to a repository detector start directory (the file's parent for regular files and the item itself for directories), calls the existing `Detector.detect`, converts the item to a root-relative path with `Path.strip_prefix`, and executes the read-only command with `Runner.run`. It does not reuse the selected/cwd action scope because the feature is intentionally based on the hovered preview item.
+The action adapter resolves the hovered URL to a repository detector start
+directory (the file's parent for regular files and the item itself for
+directories), calls the existing `Detector.detect`, converts the item to a
+root-relative path with `Path.strip_prefix`, and executes the read-only command
+with `Runner.run`. It uses the same timeout and command argument boundaries as
+the existing VCS operations.
 
-The preview adapter uses `ui.Layout():direction(ui.Layout.VERTICAL):constraints({ ui.Constraint.Percentage(50), ui.Constraint.Percentage(50) }):split(job.area)`. The upper rectangle is passed to the corresponding Yazi preset previewer by copying the preview job and replacing only `area`; the lower rectangle receives a `ui.Text` widget containing a title and at most five formatted entries. A missing repository, untracked item, empty history, failed command, timeout, or unsupported previewer is rendered as text and does not prevent the upper preview from being attempted.
+`core-notify.lua` keeps the normal single-line notification helpers and adds a
+bounded multi-line history notification with an eight-second timeout. Log
+entries are joined with line breaks after parsing, while command error details
+are collapsed to one line before display. The notification explains missing
+repositories, untracked items, empty history, and command failures.
 
-The standard-preview delegation table follows the Yazi 26.8.15 preset categories: `folder`, `code`, `json`, `magick`, `svg`, `image`, `video`, `pdf`, `archive`, `font`, `empty`, `vfs`, `null`, and `file`. The adapter is isolated so Yazi preset-module changes are confined to one compatibility table. The user must register the catch-all previewer with `[[plugin.prepend_previewers]]`, `url = "*"`, and `run = "vcs"`; rule ordering remains the user's responsibility.
+The `peek` and `seek` methods remain as compatibility pass-throughs for users
+who still have the former catch-all `url = "*"`, `run = "vcs"` previewer rule.
+They delegate to the standard Yazi preview adapter without modifying the job's
+area. New installations do not need a custom previewer rule for VCS logs.
 
-Concurrency and recovery follow the existing read-only path: no operation lock or `ui.hide()` permit is acquired, the command uses the shared timeout-aware runner with `Command.NULL` stdin, stale preview results are guarded by Yazi's `only_if` refresh event, and no state is persisted outside the running Yazi instance. The per-tab flag is cleared only by toggling it off; changing directories or files while enabled causes the normal preview lifecycle to refresh the displayed item.
-
-Traceability: requirements 1-2 map to `main.lua` dispatch and `core-state.lua`; requirements 3-4 map to `core-log-preview.lua` and the preview adapter; requirement 5 maps to unchanged `actions.lua`/`core-commands.lua`; requirement 6 maps to pure parser/command tests, Git/SVN integration tests, and live Yazi acceptance checks.
+Traceability: requirements 1-2 map to `actions.lua` and `core-log-preview.lua`;
+requirement 3 maps to `core-notify.lua` and the shared runner; requirement 4
+maps to the pass-through preview methods and unchanged existing actions. Tests
+cover the fixed log limit, Git/SVN parsing and integration, message handling,
+temporary notification formatting, and standard preview classification.

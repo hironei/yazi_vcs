@@ -7,6 +7,7 @@ local M = {}
 
 local TITLE = "VCS"
 local TIMEOUTS = { info = 3, warn = 6, error = 8 }
+local HISTORY_TIMEOUT = 8
 
 --- Render a printf-style message, collapsing embedded newlines to spaces
 --- and trimming trailing whitespace so it fits Yazi's single-line
@@ -52,6 +53,17 @@ end
 ---@param ... any
 function M.error(s, ...)
 	send("error", s, ...)
+end
+
+--- Show a bounded multi-line history result without collapsing its entries.
+---@param content string
+function M.history(content)
+	ya.notify({
+		title = TITLE,
+		content = tostring(content or ""),
+		timeout = HISTORY_TIMEOUT,
+		level = "info",
+	})
 end
 
 return M
