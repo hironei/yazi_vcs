@@ -141,22 +141,12 @@ function M:seek(job)
 end
 
 function M:spot(job)
-	-- The dynamic registration only selects this Spotter once. Remove it
-	-- before doing any work so the next normal `spot` resolves Yazi's own
-	-- standard Spotter list.
-	local ids = State.get_vcs_spotters()
-	if ids then
-		local all_ok = true
-		for _, id in ipairs(ids) do
-			local ok, err = pcall(function()
-				rt.plugin.spotters:remove({ id = id })
-			end)
-			if not ok then
-				all_ok = false
-				if type(ya.dbg) == "function" then ya.dbg("vcs log spotter cleanup failed: " .. tostring(err)) end
-			end
-		end
-		if all_ok then State.clear_vcs_spotters() end
+	-- Keep the temporary registrations while VCS Spot is active so Yazi's
+	-- standard `swipe` action reselects this handler for the new hover target.
+	-- If a stale registration remains after an unexpected close, clean it up
+	-- before allowing this Spot invocation to continue.
+	if State.get_vcs_spotters() and not State.is_vcs_spot_active() then
+		Actions.cleanup_spotters()
 	end
 
 	local file = job.file or {}

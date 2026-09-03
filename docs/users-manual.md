@@ -434,12 +434,29 @@ desc = "Show VCS log in Spot"
 on = "<Tab>"
 run = "plugin vcs -- spot-tab"
 desc = "Switch VCS log Spot to standard Spot"
+
+[[spot.prepend_keymap]]
+on = "<Esc>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-[>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-c>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
 ```
 
 `log-spot` registers temporary file and directory Spotters, opens Spot for the
-currently hovered file or directory, and removes the registrations as soon as
-the VCS Spot starts. The table shows `Revision` and `Message` columns and
-supports the normal `j`/`k` and Up/Down row navigation. Tab in the VCS table
-opens the standard Spot for the same item. Tab in a standard Spot continues to
-close it. Yazi 26.8.15 or newer is required; the plugin does not permanently
-override the standard Spotter list.
+currently hovered file or directory, and keeps the registrations while the VCS
+Spot is active. The standard Spot `h`/`l` swipe follows the new hovered item
+and refreshes the VCS log table. The table shows `Revision` and `Message`
+columns and supports the normal `j`/`k` and Up/Down row navigation. Tab in the
+VCS table opens the standard Spot for the same item; Esc, C-[, and C-c close
+the VCS Spot and clean up its temporary registrations. Tab in a standard Spot
+continues to close it. Yazi 26.8.15 or newer is required; the plugin does not
+permanently override the standard Spotter list.

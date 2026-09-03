@@ -222,25 +222,45 @@ local directory_spotter = rt.plugin.spotters:insert(1, { url = "*/", run = "vcs"
 
 The returned `id.value` values are stored in `core-state.lua` together with a
 VCS Spot active flag, then `ya.emit("spot", { force = true })` starts the
-one-shot display. Registration failures are reported through the existing
-single-line notification helper, and any successfully registered sibling is
-removed when the other registration fails.
+display. The registrations remain while the VCS Spot is active, allowing
+Yazi's standard `swipe` action to invoke `vcs:spot(job)` again for a new hover
+target. Registration failures are reported through the existing single-line
+notification helper, and any successfully registered sibling is removed when
+the other registration fails.
 
-`main.lua` implements `M:spot(job)`, which takes and removes the temporary IDs
-before resolving the repository or running Git/SVN. It builds rows from
+`main.lua` implements `M:spot(job)`, which retains the temporary IDs while VCS
+Spot is active and removes stale IDs when the active flag is false. It builds rows from
 `core-log-preview.lua` and passes a styled `ui.Table` to `ya.spot_table`. The
 table has a fixed `Revision` column and a fill `Message` column; errors are
-represented by one fallback row. Removing the ID before the query is
-intentional: the running Spotter receives its selected handler, while later
-Spot operations use the unchanged standard Spotter configuration.
+represented by one fallback row. The IDs are removed by the Tab transition and
+close handlers before standard Spot or close is emitted. This lets repeated
+swipe operations keep using the VCS handler without permanently changing the
+standard Spotter configuration.
 
-The optional `[spot]` Tab binding invokes `spot-tab`. The action emits the
-manager `escape` action when the VCS flag is false, preserving normal Spot
-close behavior. When the flag is true, it clears the flag and forces another
-Spot selection, which now resolves Yazi's standard Spotter for the same item.
-This keeps the feature one-shot and avoids a permanent catch-all registration.
+The optional `[spot]` Tab binding invokes `spot-tab`. The action removes the
+temporary IDs and forces another Spot selection when the VCS flag is true. When
+the flag is false, it emits the manager `escape` action, preserving normal
+Spot close behavior. The `spot-close` action performs the same cleanup before
+handling Esc/C-[ / C-c. This keeps the feature temporary without interrupting
+the standard `h`/`l` swipe behavior.
 
 The dynamic-API calls are localized to `actions.lua` and `main.lua` so the
 Yazi-version-specific surface can be replaced if the experimental API changes.
 Tests cover the table row transformation; live acceptance must additionally
 verify the Yazi 26.8.15 Spot UI, Tab transition, and cancellation cleanup.
+
+## Issue #50 Design: VCS Log Spot Swipe Follow
+
+The dynamic file and directory Spotters remain registered while the shared VCS
+Spot-active flag is true. Yazi's existing `[spot]` `swipe -1` and `swipe 1`
+actions then move the hovered item and reselect the same VCS Spot handler,
+which reruns `M:spot(job)` with the new file or directory. No custom h/l
+movement implementation is needed, so standard Spot swipe semantics remain the
+source of truth.
+
+`spot-tab` and the new `spot-close` action call the shared cleanup path before
+emitting standard Spot or escape. The cleanup clears both dynamic Spotter IDs
+and the active flag. The close bindings are documented for Esc, C-[, and C-c;
+when the flag is false, the existing Tab bridge still emits the normal close
+action. `M:spot(job)` only removes stale IDs when the active flag is already
+false, preventing a valid swipe-triggered VCS render from losing its matcher.

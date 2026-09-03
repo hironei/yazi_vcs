@@ -7,12 +7,19 @@
 - Updated the shared cleanup state and setup documentation; the standard Spot
   list remains unchanged after the one-shot display.
 
+## 2026-09-03 — VCS Log Spot swipe follow-up
+
+- Kept the temporary VCS Spotters active while VCS Log Spot is open so the
+  standard `h`/`l` swipe refreshes the log for the new hovered item.
+- Added close-path cleanup for Esc, C-[, and C-c, while preserving the normal
+  Spot transition and close behavior.
+
 ## 2026-09-03 — Temporary VCS Log Spot (Issue #47)
 
 - Added `plugin vcs -- log-spot`, which uses Yazi's dynamic Spotter API for a
   one-shot selectable Git/SVN history table with up to five entries.
-- Removed the temporary Spotter before querying or rendering and kept the
-  standard Spotter list untouched for later Spot actions.
+- Removed the temporary Spotters when leaving or closing VCS Log Spot and kept
+  the standard Spotter list untouched for later normal Spot actions.
 - Added the optional `[spot]` Tab bridge so VCS Log Spot switches to the normal
   Spot while standard Spot Tab retains its close behavior.
 - Reused log-preview command, parser, timeout, and error handling and added

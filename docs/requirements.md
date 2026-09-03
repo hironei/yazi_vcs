@@ -1974,9 +1974,10 @@ timeout, and error messages from `log-preview`.
 The action must use Yazi 26.8.15's dynamic Spotter API to insert temporary file
 and directory Spotters (`url = "*"` and `url = "*/"`, both `run = "vcs"`) at the
 front of the list, save their returned IDs in the shared `ya.sync()` state,
-and force one Spot open. The `vcs:spot(job)` handler removes those IDs before
-querying or rendering, so the normal Spotter list is restored before any
-subsequent Spot action. The plugin must not add permanent
+and force one Spot open. The IDs remain registered while the VCS Spot is active
+so Yazi's standard `swipe` action can reselect `vcs:spot(job)` for the new
+hovered item. The registrations are removed before switching to standard Spot
+or closing the VCS Spot. The plugin must not add permanent
 `plugin.prepend_spotters` catch-all rules or hard-code Yazi's standard Spotter
 types.
 
@@ -1986,24 +1987,52 @@ root path, untracked file, empty history, command failure, unsupported dynamic
 API, or cleanup failure must produce a bounded in-Spot message and leave no
 temporary registration behind.
 
-Users may route `[spot]` Tab to `plugin vcs -- spot-tab`. If the VCS log Spot
-is active, the action clears the VCS state and forces the standard Spot for the
-same hovered item. Otherwise it emits the normal manager escape action so the
-binding retains the default close behavior. The existing manager Spot action,
-`log-preview`, CLI Log, Preview, status, and Changes View behavior remain
-unchanged.
+Users may route `[spot]` Tab to `plugin vcs -- spot-tab` and the close keys to
+`plugin vcs -- spot-close`. If the VCS log Spot is active, Tab clears the VCS
+state and forces the standard Spot for the same hovered item; otherwise it
+emits the normal manager escape action so the binding retains the default close
+behavior. While active, the standard Spot `h`/`l` swipe refreshes the VCS log
+for the new hovered item. The existing manager Spot action, `log-preview`, CLI
+Log, Preview, status, and Changes View behavior remain unchanged.
 
 Acceptance criteria:
 
 1. `plugin vcs -- log-spot` displays the hovered Git/SVN item's latest five
    entries in a selectable Spot table.
 2. `j`/`k` and Up/Down move the standard Spot row selection.
-3. The temporary Spotter is removed when Spot starts, before VCS work begins,
-   and on registration errors or a cancelled start when cleanup is possible.
+3. The temporary Spotters remain while VCS Spot is active, are removed before
+   standard Spot or close transitions, and are cleaned up on registration
+   errors or stale-state recovery when cleanup is possible.
 4. Normal `Tab` to open Spot continues to select Yazi's standard Spotters.
-5. With the documented `[spot]` Tab binding, VCS Spot Tab opens standard Spot
-   for the same item, while standard Spot Tab closes it.
+5. With the documented `[spot]` bindings, VCS Spot `h`/`l` swipes to adjacent
+   items and refreshes the VCS log, Tab opens standard Spot for the same item,
+   and standard Spot Tab closes it. Esc/C-[ / C-c close VCS Spot cleanly.
 6. Running `log-spot` again after changing the hovered item displays that
    item's VCS history and does not accumulate Spotter registrations.
 7. Existing `log-preview`, CLI Log, Preview, status, Changes View, Git, and
    SVN behavior remains available.
+
+## Issue #50 Addendum: VCS Log Spot Swipe Follow
+
+While the VCS Log Spot is active, its temporary file and directory Spotters
+remain registered so Yazi's standard `[spot]` `h`/`l` `swipe` actions reselect
+the VCS Spot handler for the new hovered item. The handler must rerun the
+existing repository detection and log query and render the new item's latest
+five entries without changing row-selection behavior.
+
+The temporary registrations must be removed before the VCS-to-standard Spot
+Tab transition and before VCS Spot close actions (`Esc`, `C-[`, and `C-c`). A
+stale inactive registration must be removed before any later Spot render.
+Normal Spot swipe and close behavior must remain unchanged when the VCS flag is
+not active.
+
+Acceptance criteria:
+
+1. VCS Log Spot follows `h`/`l` across Git files and directories and refreshes
+   the displayed history for each hovered item.
+2. The same behavior works for SVN where available.
+3. Repeated swipes do not accumulate temporary Spotter registrations.
+4. VCS Spot row navigation with `j`/`k` and Up/Down remains unchanged.
+5. Tab switches to standard Spot for the same item and removes the temporary
+   registrations; standard Spot Tab still closes normally.
+6. Esc, C-[, and C-c close VCS Spot and remove temporary registrations.

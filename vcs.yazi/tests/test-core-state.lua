@@ -10,6 +10,7 @@ return function(t)
 	t.truthy(state_module.is_vcs_spot_active(state), "state marks the VCS Spot active")
 	state_module.clear_vcs_spotters(state)
 	t.eq(state_module.get_vcs_spotters(state), nil, "state clears temporary Spotter IDs")
+	t.falsy(state_module.is_vcs_spot_active(state), "state clears the VCS Spot active flag with Spotters")
 	state_module.set_vcs_spot_active(state, false)
 	t.falsy(state_module.is_vcs_spot_active(state), "state clears the VCS Spot active flag")
 
