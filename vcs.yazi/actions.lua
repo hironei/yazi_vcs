@@ -175,6 +175,17 @@ local function debug_log(message)
 	if type(ya.dbg) == "function" then pcall(ya.dbg, message) end
 end
 
+local function remove_vcs_spotter()
+	local id = State.get_vcs_spotter()
+	if not id then return true end
+	local ok, err = pcall(function()
+		rt.plugin.spotters:remove({ id = id })
+	end)
+	if not ok then debug_log("log-spot: failed to remove temporary spotter: " .. tostring(err)) end
+	if ok then State.clear_vcs_spotter() end
+	return ok
+end
+
 local function convert_external_path(path, style, environment, root, cfg)
 	if style ~= "windows" or (environment ~= "wsl" and environment ~= "git-bash") then return path end
 	local converter = External.converter(environment)
@@ -527,6 +538,41 @@ function M.log_preview()
 	Notify.history(table.concat(lines, "\n"))
 end
 
+function M.log_spot()
+	local hovered_url = current_hovered_url()
+	if not hovered_url then return Notify.warn("No hovered item to show in Spot.") end
+
+	-- A previous VCS Spotter may still be registered if its Spot task was
+	-- cancelled before it started. Remove it before inserting the next one.
+	State.set_vcs_spot_active(false)
+	if not remove_vcs_spotter() then
+		return Notify.error("VCS log Spot could not remove its previous temporary Spotter.")
+	end
+
+	local ok, spotter_or_error = pcall(function()
+		return rt.plugin.spotters:insert(1, { url = "*", run = "vcs" })
+	end)
+	if not ok or not spotter_or_error or not spotter_or_error.id then
+		return Notify.error("VCS log Spot requires Yazi 26.8.15 or newer: %s", tostring(spotter_or_error))
+	end
+
+	local id = spotter_or_error.id
+	if type(id) == "table" or type(id) == "userdata" then id = id.value end
+	if not id then return Notify.error("VCS log Spot could not save its temporary Spotter.") end
+	State.set_vcs_spotter(id)
+	ya.emit("spot", { force = true })
+end
+
+function M.spot_tab()
+	if not State.is_vcs_spot_active() then
+		-- This binding replaces Spot's default Tab close action, so preserve that
+		-- behavior whenever the VCS log is not the active Spot content.
+		return ya.emit("escape", {})
+	end
+	State.set_vcs_spot_active(false)
+	ya.emit("spot", { force = true })
+end
+
 function M.discard()
 	local cfg = Config.get()
 	local scope = resolve_scope(cfg)
@@ -644,6 +690,8 @@ function M.entry(action, args)
 		diff = function() return M.diff(named_external(args)) end,
 		log = function() return M.log(named_external(args)) end,
 		["log-preview"] = M.log_preview,
+		["log-spot"] = M.log_spot,
+		["spot-tab"] = M.spot_tab,
 		discard = M.discard,
 		["copy-url"] = M.copy_url,
 		["copy-url-revision"] = M.copy_url_revision,

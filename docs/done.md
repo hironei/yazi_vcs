@@ -1,5 +1,16 @@
 # 完了記録
 
+## 2026-09-03 — Temporary VCS Log Spot (Issue #47)
+
+- Added `plugin vcs -- log-spot`, which uses Yazi's dynamic Spotter API for a
+  one-shot selectable Git/SVN history table with up to five entries.
+- Removed the temporary Spotter before querying or rendering and kept the
+  standard Spotter list untouched for later Spot actions.
+- Added the optional `[spot]` Tab bridge so VCS Log Spot switches to the normal
+  Spot while standard Spot Tab retains its close behavior.
+- Reused log-preview command, parser, timeout, and error handling and added
+  table-row unit coverage. Live Yazi 26.8.15 UI acceptance remains required.
+
 ## 2026-08-31 — Hovered-File VCS Log Preview Pane (Superseded)
 
 - Added the opt-in `plugin vcs -- log-preview` action and documented `g v v` without changing the existing Push (`g v p`) or CLI Log (`g v l`) bindings.

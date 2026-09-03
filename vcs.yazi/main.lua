@@ -15,6 +15,7 @@ local GitActions = require(".git-actions")
 local VcsInfo = require(".core-vcs-info")
 local Fetcher = require(".core-fetcher")
 local Preview = require(".core-preview")
+local LogPreview = require(".core-log-preview")
 
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
@@ -137,6 +138,66 @@ end
 
 function M:seek(job)
 	return Preview.seek(job)
+end
+
+function M:spot(job)
+	-- The dynamic registration only selects this Spotter once. Remove it
+	-- before doing any work so the next normal `spot` resolves Yazi's own
+	-- standard Spotter list.
+	local id = State.get_vcs_spotter()
+	if id then
+		local ok, err = pcall(function()
+			rt.plugin.spotters:remove({ id = id })
+		end)
+		if not ok and type(ya.dbg) == "function" then ya.dbg("vcs log spotter cleanup failed: " .. tostring(err)) end
+		if ok then State.clear_vcs_spotter() end
+	end
+
+	local file = job.file or {}
+	local path = tostring(file.path or file.url or "")
+	local is_dir = file.cha and file.cha.is_dir == true
+	local cfg = Config.get()
+	local start = is_dir and path or Path.parent(path)
+	local root = State.root_of(start)
+	local record = root and State.info_of(root)
+	local kind = record and record.kind
+	if not kind or not root then kind, root = Detector.detect(Url(start), cfg.detection.priority) end
+
+	local entries, fallback
+	if not kind or not root then
+		fallback = LogPreview.message(nil, "outside-repository")
+	else
+		local relative = Path.strip_prefix(root, path)
+		if not relative then
+			fallback = LogPreview.message(nil, "outside-root")
+		elseif State.status_of(root, relative) == "untracked" then
+			fallback = LogPreview.message(nil, "untracked")
+		else
+			local args = LogPreview.args(kind, relative)
+			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+			if not output or not output.status.success then
+				local detail = Runner.error_text(output, err):gsub("[\r\n]+", " ")
+				fallback = LogPreview.message(kind, "command-failed", detail)
+			else
+				entries = LogPreview.parse(kind, output.stdout)
+				if #entries == 0 then fallback = LogPreview.message(nil, "empty") end
+			end
+		end
+	end
+
+	local rows = {}
+	for _, row in ipairs(LogPreview.table_rows(entries or {}, fallback)) do rows[#rows + 1] = ui.Row(row) end
+	rows[1] = rows[1]:style(ui.Style():fg("green"))
+	ya.spot_table(
+		job,
+		ui.Table(rows)
+			:area(ui.Pos { "center", w = 80, h = 10 })
+			:row(1)
+			:col(1)
+			:col_style(th.spot.tbl_col)
+			:cell_style(th.spot.tbl_cell)
+			:widths { ui.Constraint.Length(14), ui.Constraint.Fill(1) }
+	)
 end
 
 function M.refresh_status()

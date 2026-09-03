@@ -418,3 +418,28 @@ revision, author, date, and subject on one line.
 The notification explains when the item is outside Git/SVN, untracked, has no
 history, or the log command fails. The existing `g v p` Push and `g v l` CLI Log
 operations are unchanged.
+
+## VCS Log Spot (Issue #47)
+
+To make the five newest entries selectable in Yazi Spot, add these bindings to
+`<YAZI_CONFIG_HOME>/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "s" ]
+run = "plugin vcs -- log-spot"
+desc = "Show VCS log in Spot"
+
+[[spot.prepend_keymap]]
+on = "<Tab>"
+run = "plugin vcs -- spot-tab"
+desc = "Switch VCS log Spot to standard Spot"
+```
+
+`log-spot` registers a temporary catch-all Spotter, opens Spot for the
+currently hovered file or directory, and removes the registration as soon as
+the VCS Spot starts. The table shows `Revision` and `Message` columns and
+supports the normal `j`/`k` and Up/Down row navigation. Tab in the VCS table
+opens the standard Spot for the same item. Tab in a standard Spot continues to
+close it. Yazi 26.8.15 or newer is required; the plugin does not permanently
+override the standard Spotter list.

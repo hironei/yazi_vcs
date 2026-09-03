@@ -110,4 +110,17 @@ function M.parse(kind, stdout)
 	return {}
 end
 
+function M.table_rows(entries, fallback)
+	local rows = { { "Revision", "Message" } }
+	if #entries == 0 then
+		rows[#rows + 1] = { "-", fallback or "No history for the hovered item." }
+		return rows
+	end
+	for _, entry in ipairs(entries) do
+		local revision, message = tostring(entry):match("^(%S+)%s+(.*)$")
+		rows[#rows + 1] = { revision or "-", message or tostring(entry) }
+	end
+	return rows
+end
+
 return M
