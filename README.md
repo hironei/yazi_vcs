@@ -161,13 +161,29 @@ To show the same latest-five history in a selectable Spot instead, bind
 on = "<Tab>"
 run = "plugin vcs -- spot-tab"
 desc = "Switch VCS log Spot to standard Spot"
+
+[[spot.prepend_keymap]]
+on = "<Esc>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-[>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-c>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
 ```
 
-`log-spot` temporarily inserts file and directory VCS Spotters only for the
-forced Spot open, then removes them as soon as the VCS Spot starts. Use `j`/`k`
-or Up/Down to select rows. While the VCS log is shown, Tab removes the
-temporary state and opens Yazi's normal Spot for the same item. When the normal
-Spot is active, the same binding preserves the usual close behavior. No
+`log-spot` temporarily inserts file and directory VCS Spotters for the active
+VCS Spot. The standard Spot `h`/`l` swipe then re-renders the VCS log for the
+new hovered item. Use `j`/`k` or Up/Down to select rows. Tab removes the
+temporary state and opens Yazi's normal Spot for the same item. Esc, C-[, and
+C-c close the VCS Spot and remove the temporary registrations. When the normal
+Spot is active, the same Tab binding preserves the usual close behavior. No
 permanent catch-all Spotter is installed, and the existing `log-preview`, `g v p`
 Push, and `g v l` CLI Log bindings remain available.
 

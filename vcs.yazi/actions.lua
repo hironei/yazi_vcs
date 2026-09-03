@@ -197,6 +197,12 @@ local function remove_vcs_spotters()
 	return ok
 end
 
+function M.cleanup_spotters()
+	local ok = remove_vcs_spotters()
+	if ok then State.set_vcs_spot_active(false) end
+	return ok
+end
+
 local function convert_external_path(path, style, environment, root, cfg)
 	if style ~= "windows" or (environment ~= "wsl" and environment ~= "git-bash") then return path end
 	local converter = External.converter(environment)
@@ -588,8 +594,17 @@ function M.spot_tab()
 		-- behavior whenever the VCS log is not the active Spot content.
 		return ya.emit("escape", {})
 	end
-	State.set_vcs_spot_active(false)
+	if not M.cleanup_spotters() then
+		return Notify.error("VCS log Spot could not remove its temporary Spotters.")
+	end
 	ya.emit("spot", { force = true })
+end
+
+function M.spot_close()
+	if State.is_vcs_spot_active() and not M.cleanup_spotters() then
+		return Notify.error("VCS log Spot could not remove its temporary Spotters.")
+	end
+	ya.emit("escape", {})
 end
 
 function M.discard()
@@ -711,6 +726,7 @@ function M.entry(action, args)
 		["log-preview"] = M.log_preview,
 		["log-spot"] = M.log_spot,
 		["spot-tab"] = M.spot_tab,
+		["spot-close"] = M.spot_close,
 		discard = M.discard,
 		["copy-url"] = M.copy_url,
 		["copy-url-revision"] = M.copy_url_revision,

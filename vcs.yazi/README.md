@@ -57,12 +57,29 @@ desc = "Show VCS log in Spot"
 on = "<Tab>"
 run = "plugin vcs -- spot-tab"
 desc = "Switch VCS log Spot to standard Spot"
+
+[[spot.prepend_keymap]]
+on = "<Esc>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-[>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "<C-c>"
+run = "plugin vcs -- spot-close"
+desc = "Close VCS log Spot"
 ```
 
 Temporary VCS Spotters for files and directories are registered dynamically at
-the front of the Spotter list, used once, and removed as soon as the Spot
-starts. The table supports the standard Spot navigation keys (`j`/`k`,
-Up/Down). Tab while the VCS table is visible opens the normal Spot for the same
-item. When the normal Spot is visible, the same binding keeps its default close
+the front of the Spotter list and remain registered while the VCS Spot is
+active, allowing the standard Spot `h`/`l` swipe to re-render the log for the
+new hovered item. The table supports the standard Spot row navigation keys
+(`j`/`k`, Up/Down). Tab while the VCS table is visible opens the normal Spot for
+the same item. Esc, C-[, and C-c close the VCS Spot and clean up the temporary
+registrations. When the normal Spot is visible, Tab keeps its default close
 behavior. Yazi 26.8.15 or newer is required for the dynamic Spotter API; no
 permanent catch-all Spotter is added.

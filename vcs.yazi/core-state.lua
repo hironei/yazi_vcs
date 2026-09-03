@@ -22,6 +22,7 @@ end)
 
 M.clear_vcs_spotters = ya.sync(function(state)
 	state.vcs_spotter_ids = nil
+	state.vcs_spot_active = false
 end)
 
 M.set_vcs_spot_active = ya.sync(function(state, active)
