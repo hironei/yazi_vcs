@@ -213,18 +213,20 @@ temporary notification formatting, and standard preview classification.
 
 `actions.lua` keeps `log-preview` unchanged and adds `log-spot`. The new action
 captures the same hovered-item context, clears any stale VCS Spot state, and
-calls Yazi 26.8.15's experimental dynamic Spotter API:
+calls Yazi 26.8.15's experimental dynamic Spotter API for both URL classes:
 
 ```lua
-local spotter = rt.plugin.spotters:insert(1, { url = "*", run = "vcs" })
+local file_spotter = rt.plugin.spotters:insert(1, { url = "*", run = "vcs" })
+local directory_spotter = rt.plugin.spotters:insert(1, { url = "*/", run = "vcs" })
 ```
 
-The returned `spotter.id.value` is stored in `core-state.lua` together with a
+The returned `id.value` values are stored in `core-state.lua` together with a
 VCS Spot active flag, then `ya.emit("spot", { force = true })` starts the
 one-shot display. Registration failures are reported through the existing
-single-line notification helper.
+single-line notification helper, and any successfully registered sibling is
+removed when the other registration fails.
 
-`main.lua` implements `M:spot(job)`, which takes and removes the temporary ID
+`main.lua` implements `M:spot(job)`, which takes and removes the temporary IDs
 before resolving the repository or running Git/SVN. It builds rows from
 `core-log-preview.lua` and passes a styled `ui.Table` to `ya.spot_table`. The
 table has a fixed `Revision` column and a fill `Message` column; errors are
