@@ -11,6 +11,27 @@ M.get_config = ya.sync(function(state)
 	return state.config
 end)
 
+M.set_vcs_spotter = ya.sync(function(state, id)
+	state.vcs_spotter_id = id
+	state.vcs_spot_active = true
+end)
+
+M.get_vcs_spotter = ya.sync(function(state)
+	return state.vcs_spotter_id
+end)
+
+M.clear_vcs_spotter = ya.sync(function(state)
+	state.vcs_spotter_id = nil
+end)
+
+M.set_vcs_spot_active = ya.sync(function(state, active)
+	state.vcs_spot_active = active == true
+end)
+
+M.is_vcs_spot_active = ya.sync(function(state)
+	return state.vcs_spot_active == true
+end)
+
 M.remember = ya.sync(function(state, cwd, root, changed, vcs_info)
 	state.dirs = state.dirs or {}
 	state.roots = state.roots or {}

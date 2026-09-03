@@ -43,3 +43,26 @@ cursor moves; invoke it again for another item. The existing `g v p` Push and
 No custom previewer registration is required. An old catch-all previewer rule
 for `run = "vcs"` remains safe because the plugin delegates it to the normal
 Yazi previewer.
+
+To show the latest five entries in a selectable Spot, add a separate manager
+binding and route Spot's Tab through the plugin:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "s" ]
+run = "plugin vcs -- log-spot"
+desc = "Show VCS log in Spot"
+
+[[spot.prepend_keymap]]
+on = "<Tab>"
+run = "plugin vcs -- spot-tab"
+desc = "Switch VCS log Spot to standard Spot"
+```
+
+The VCS Spotter is registered dynamically at the front of the Spotter list,
+used once, and removed as soon as the Spot starts. The table supports the
+standard Spot navigation keys (`j`/`k`, Up/Down). Tab while the VCS table is
+visible opens the normal Spot for the same item. When the normal Spot is
+visible, the same binding keeps its default close behavior. Yazi 26.8.15 or
+newer is required for the dynamic Spotter API; no permanent catch-all Spotter
+is added.

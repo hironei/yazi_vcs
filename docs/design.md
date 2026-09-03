@@ -208,3 +208,37 @@ requirement 3 maps to `core-notify.lua` and the shared runner; requirement 4
 maps to the pass-through preview methods and unchanged existing actions. Tests
 cover the fixed log limit, Git/SVN parsing and integration, message handling,
 temporary notification formatting, and standard preview classification.
+
+## Issue #47 Design: Temporary VCS Log Spot
+
+`actions.lua` keeps `log-preview` unchanged and adds `log-spot`. The new action
+captures the same hovered-item context, clears any stale VCS Spot state, and
+calls Yazi 26.8.15's experimental dynamic Spotter API:
+
+```lua
+local spotter = rt.plugin.spotters:insert(1, { url = "*", run = "vcs" })
+```
+
+The returned `spotter.id.value` is stored in `core-state.lua` together with a
+VCS Spot active flag, then `ya.emit("spot", { force = true })` starts the
+one-shot display. Registration failures are reported through the existing
+single-line notification helper.
+
+`main.lua` implements `M:spot(job)`, which takes and removes the temporary ID
+before resolving the repository or running Git/SVN. It builds rows from
+`core-log-preview.lua` and passes a styled `ui.Table` to `ya.spot_table`. The
+table has a fixed `Revision` column and a fill `Message` column; errors are
+represented by one fallback row. Removing the ID before the query is
+intentional: the running Spotter receives its selected handler, while later
+Spot operations use the unchanged standard Spotter configuration.
+
+The optional `[spot]` Tab binding invokes `spot-tab`. The action emits the
+manager `escape` action when the VCS flag is false, preserving normal Spot
+close behavior. When the flag is true, it clears the flag and forces another
+Spot selection, which now resolves Yazi's standard Spotter for the same item.
+This keeps the feature one-shot and avoids a permanent catch-all registration.
+
+The dynamic-API calls are localized to `actions.lua` and `main.lua` so the
+Yazi-version-specific surface can be replaced if the experimental API changes.
+Tests cover the table row transformation; live acceptance must additionally
+verify the Yazi 26.8.15 Spot UI, Tab transition, and cancellation cleanup.

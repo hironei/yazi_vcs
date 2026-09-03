@@ -1963,3 +1963,46 @@ Acceptance criteria:
 6. Unit and integration tests cover command construction, output parsing,
    notification formatting, empty/error/untracked cases, and the existing
    regression suite remains green.
+
+## Issue #47 Addendum: Temporary VCS Log Spot
+
+The plugin also provides `plugin vcs -- log-spot` for displaying the current
+hovered file or directory's five newest Git or SVN entries in Yazi's native
+Spot table. It reuses the existing detector, log command construction, parser,
+timeout, and error messages from `log-preview`.
+
+The action must use Yazi 26.8.15's dynamic Spotter API to insert a single
+catch-all `{ url = "*", run = "vcs" }` Spotter at the front of the list, save
+its returned ID in the shared `ya.sync()` state, and force one Spot open. The
+`vcs:spot(job)` handler removes that ID before querying or rendering, so the
+normal Spotter list is restored before any subsequent Spot action. The plugin
+must not add a permanent `plugin.prepend_spotters` catch-all or hard-code
+Yazi's standard Spotter types.
+
+The Spot table has `Revision` and `Message` columns, contains at most five
+rows, and uses Yazi's normal row navigation. A missing repository, outside
+root path, untracked file, empty history, command failure, unsupported dynamic
+API, or cleanup failure must produce a bounded in-Spot message and leave no
+temporary registration behind.
+
+Users may route `[spot]` Tab to `plugin vcs -- spot-tab`. If the VCS log Spot
+is active, the action clears the VCS state and forces the standard Spot for the
+same hovered item. Otherwise it emits the normal manager escape action so the
+binding retains the default close behavior. The existing manager Spot action,
+`log-preview`, CLI Log, Preview, status, and Changes View behavior remain
+unchanged.
+
+Acceptance criteria:
+
+1. `plugin vcs -- log-spot` displays the hovered Git/SVN item's latest five
+   entries in a selectable Spot table.
+2. `j`/`k` and Up/Down move the standard Spot row selection.
+3. The temporary Spotter is removed when Spot starts, before VCS work begins,
+   and on registration errors or a cancelled start when cleanup is possible.
+4. Normal `Tab` to open Spot continues to select Yazi's standard Spotters.
+5. With the documented `[spot]` Tab binding, VCS Spot Tab opens standard Spot
+   for the same item, while standard Spot Tab closes it.
+6. Running `log-spot` again after changing the hovered item displays that
+   item's VCS history and does not accumulate Spotter registrations.
+7. Existing `log-preview`, CLI Log, Preview, status, Changes View, Git, and
+   SVN behavior remains available.

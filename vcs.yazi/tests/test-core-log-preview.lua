@@ -46,4 +46,14 @@ details</msg></logentry>
 		{ "r12 alice 2026-08-31 first & important", "r11 - 2026-08-30 (no message)", "r10 bob 2026-08-29 日本語 change", "r9 carol 2026-08-28 fourth", "r8 dave 2026-08-27 fifth" },
 		"SVN parser decodes XML and formats at most five entries"
 	)
+	local rows = log.table_rows({ "abc123 Fix preview", "r42 user 2026-09-03 Update" })
+	t.deep_eq(rows, {
+		{ "Revision", "Message" },
+		{ "abc123", "Fix preview" },
+		{ "r42", "user 2026-09-03 Update" },
+	}, "Spot rows split revision from message")
+	t.deep_eq(log.table_rows({}, "No repository"), {
+		{ "Revision", "Message" },
+		{ "-", "No repository" },
+	}, "Spot rows show bounded fallback message")
 end
