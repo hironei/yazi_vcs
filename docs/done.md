@@ -1,5 +1,12 @@
 # 完了記録
 
+## 2026-09-03 — Directory VCS Log Spot follow-up
+
+- Added a temporary directory Spotter alongside the file Spotter so
+  `plugin vcs -- log-spot` works for both hovered files and directories.
+- Updated the shared cleanup state and setup documentation; the standard Spot
+  list remains unchanged after the one-shot display.
+
 ## 2026-09-03 — Temporary VCS Log Spot (Issue #47)
 
 - Added `plugin vcs -- log-spot`, which uses Yazi's dynamic Spotter API for a

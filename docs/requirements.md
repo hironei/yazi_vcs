@@ -1971,13 +1971,14 @@ hovered file or directory's five newest Git or SVN entries in Yazi's native
 Spot table. It reuses the existing detector, log command construction, parser,
 timeout, and error messages from `log-preview`.
 
-The action must use Yazi 26.8.15's dynamic Spotter API to insert a single
-catch-all `{ url = "*", run = "vcs" }` Spotter at the front of the list, save
-its returned ID in the shared `ya.sync()` state, and force one Spot open. The
-`vcs:spot(job)` handler removes that ID before querying or rendering, so the
-normal Spotter list is restored before any subsequent Spot action. The plugin
-must not add a permanent `plugin.prepend_spotters` catch-all or hard-code
-Yazi's standard Spotter types.
+The action must use Yazi 26.8.15's dynamic Spotter API to insert temporary file
+and directory Spotters (`url = "*"` and `url = "*/"`, both `run = "vcs"`) at the
+front of the list, save their returned IDs in the shared `ya.sync()` state,
+and force one Spot open. The `vcs:spot(job)` handler removes those IDs before
+querying or rendering, so the normal Spotter list is restored before any
+subsequent Spot action. The plugin must not add permanent
+`plugin.prepend_spotters` catch-all rules or hard-code Yazi's standard Spotter
+types.
 
 The Spot table has `Revision` and `Message` columns, contains at most five
 rows, and uses Yazi's normal row navigation. A missing repository, outside

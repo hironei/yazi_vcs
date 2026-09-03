@@ -11,17 +11,17 @@ M.get_config = ya.sync(function(state)
 	return state.config
 end)
 
-M.set_vcs_spotter = ya.sync(function(state, id)
-	state.vcs_spotter_id = id
+M.set_vcs_spotters = ya.sync(function(state, ids)
+	state.vcs_spotter_ids = ids
 	state.vcs_spot_active = true
 end)
 
-M.get_vcs_spotter = ya.sync(function(state)
-	return state.vcs_spotter_id
+M.get_vcs_spotters = ya.sync(function(state)
+	return state.vcs_spotter_ids
 end)
 
-M.clear_vcs_spotter = ya.sync(function(state)
-	state.vcs_spotter_id = nil
+M.clear_vcs_spotters = ya.sync(function(state)
+	state.vcs_spotter_ids = nil
 end)
 
 M.set_vcs_spot_active = ya.sync(function(state, active)

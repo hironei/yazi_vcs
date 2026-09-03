@@ -436,8 +436,8 @@ run = "plugin vcs -- spot-tab"
 desc = "Switch VCS log Spot to standard Spot"
 ```
 
-`log-spot` registers a temporary catch-all Spotter, opens Spot for the
-currently hovered file or directory, and removes the registration as soon as
+`log-spot` registers temporary file and directory Spotters, opens Spot for the
+currently hovered file or directory, and removes the registrations as soon as
 the VCS Spot starts. The table shows `Revision` and `Message` columns and
 supports the normal `j`/`k` and Up/Down row navigation. Tab in the VCS table
 opens the standard Spot for the same item. Tab in a standard Spot continues to

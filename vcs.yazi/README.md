@@ -59,10 +59,10 @@ run = "plugin vcs -- spot-tab"
 desc = "Switch VCS log Spot to standard Spot"
 ```
 
-The VCS Spotter is registered dynamically at the front of the Spotter list,
-used once, and removed as soon as the Spot starts. The table supports the
-standard Spot navigation keys (`j`/`k`, Up/Down). Tab while the VCS table is
-visible opens the normal Spot for the same item. When the normal Spot is
-visible, the same binding keeps its default close behavior. Yazi 26.8.15 or
-newer is required for the dynamic Spotter API; no permanent catch-all Spotter
-is added.
+Temporary VCS Spotters for files and directories are registered dynamically at
+the front of the Spotter list, used once, and removed as soon as the Spot
+starts. The table supports the standard Spot navigation keys (`j`/`k`,
+Up/Down). Tab while the VCS table is visible opens the normal Spot for the same
+item. When the normal Spot is visible, the same binding keeps its default close
+behavior. Yazi 26.8.15 or newer is required for the dynamic Spotter API; no
+permanent catch-all Spotter is added.

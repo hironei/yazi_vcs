@@ -175,14 +175,25 @@ local function debug_log(message)
 	if type(ya.dbg) == "function" then pcall(ya.dbg, message) end
 end
 
-local function remove_vcs_spotter()
-	local id = State.get_vcs_spotter()
-	if not id then return true end
-	local ok, err = pcall(function()
-		rt.plugin.spotters:remove({ id = id })
-	end)
-	if not ok then debug_log("log-spot: failed to remove temporary spotter: " .. tostring(err)) end
-	if ok then State.clear_vcs_spotter() end
+local function remove_spotters(ids)
+	local all_ok = true
+	for _, id in ipairs(ids or {}) do
+		local ok, err = pcall(function()
+			rt.plugin.spotters:remove({ id = id })
+		end)
+		if not ok then
+			all_ok = false
+			debug_log("log-spot: failed to remove temporary spotter: " .. tostring(err))
+		end
+	end
+	return all_ok
+end
+
+local function remove_vcs_spotters()
+	local ids = State.get_vcs_spotters()
+	if not ids then return true end
+	local ok = remove_spotters(ids)
+	if ok then State.clear_vcs_spotters() end
 	return ok
 end
 
@@ -545,21 +556,29 @@ function M.log_spot()
 	-- A previous VCS Spotter may still be registered if its Spot task was
 	-- cancelled before it started. Remove it before inserting the next one.
 	State.set_vcs_spot_active(false)
-	if not remove_vcs_spotter() then
+	if not remove_vcs_spotters() then
 		return Notify.error("VCS log Spot could not remove its previous temporary Spotter.")
 	end
 
-	local ok, spotter_or_error = pcall(function()
-		return rt.plugin.spotters:insert(1, { url = "*", run = "vcs" })
-	end)
-	if not ok or not spotter_or_error or not spotter_or_error.id then
-		return Notify.error("VCS log Spot requires Yazi 26.8.15 or newer: %s", tostring(spotter_or_error))
-	end
+	local ids = {}
+	for _, url in ipairs({ "*", "*/" }) do
+		local ok, spotter_or_error = pcall(function()
+			return rt.plugin.spotters:insert(1, { url = url, run = "vcs" })
+		end)
+		if not ok or not spotter_or_error or not spotter_or_error.id then
+			remove_spotters(ids)
+			return Notify.error("VCS log Spot requires Yazi 26.8.15 or newer: %s", tostring(spotter_or_error))
+		end
 
-	local id = spotter_or_error.id
-	if type(id) == "table" or type(id) == "userdata" then id = id.value end
-	if not id then return Notify.error("VCS log Spot could not save its temporary Spotter.") end
-	State.set_vcs_spotter(id)
+		local id = spotter_or_error.id
+		if type(id) == "table" or type(id) == "userdata" then id = id.value end
+		if not id then
+			remove_spotters(ids)
+			return Notify.error("VCS log Spot could not save its temporary Spotter.")
+		end
+		ids[#ids + 1] = id
+	end
+	State.set_vcs_spotters(ids)
 	ya.emit("spot", { force = true })
 end
 
