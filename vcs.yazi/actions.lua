@@ -124,39 +124,12 @@ local function temp_output_file(content)
 	return path
 end
 
-local function read_file(path)
-	local file, err = io.open(path, "r")
-	if not file then return nil, err end
-	local content = file:read("*a")
-	file:close()
-	return content
-end
-
 local function remove_file(path)
 	if path then os.remove(path) end
 end
 
 local function remove_output_file(path)
 	if path then fs.remove("file", Url(path)) end
-end
-
-local function has_message(content)
-	for line in tostring(content or ""):gmatch("[^\r\n]+") do
-		if line:match("%S") and not line:match("^%s*#") then return true end
-	end
-	return false
-end
-
-local function edit_message(path, cfg)
-	local editor = cfg.editor
-	if not editor or not editor.command or editor.command == "" then return nil, "editor is not configured" end
-	local args = {}
-	for _, value in ipairs(editor.args or {}) do args[#args + 1] = value end
-	args[#args + 1] = path
-	local status, err = Runner.interactive({ command = editor.command, args = args })
-	if not status then return nil, err end
-	if not status.success then return nil, "editor exited with code " .. tostring(status.code or "unknown") end
-	return read_file(path)
 end
 
 local function display_file(path, cfg)
@@ -410,23 +383,17 @@ function M.commit()
 		-- confirmed-working alternative.
 		local value, event = ya.input({ title = 'Type "commit" to confirm:\n' .. body, pos = { "center", w = 60 } })
 		if event ~= 1 or value ~= "commit" then return Notify.info("Commit cancelled.") end
-		local message_file, temp_err = temp_file("")
-		if not message_file then return Notify.error("Cannot create commit message file: %s", temp_err) end
-		local content, edit_err = edit_message(message_file, cfg)
-		if not content then
-			remove_file(message_file)
-			return Notify.warn("Commit cancelled: %s", edit_err or "empty editor result")
-		end
-		if not has_message(content) and not cfg.commit.allow_empty_message then
-			remove_file(message_file)
-			return Notify.warn("Commit cancelled: the message is empty.")
-		end
-		local fallback = kind == "git" and Commands.git_commit(message_file, paths, mode) or Commands.svn_commit(message_file, paths)
-		local output, err = run(root, kind, fallback, cfg)
-		remove_file(message_file)
 		local operation = kind:gsub("^%l", string.upper) .. " commit"
-		if not output or not output.status.success then return failure(operation, output, err) end
-		finish(root, operation, output)
+		local args = kind == "git" and Commands.git_commit(paths, mode) or Commands.svn_commit(paths)
+		local status, err = Runner.interactive({ command = kind, args = args, cwd = root })
+		if not status or not status.success then
+			-- Native commit may update the index before the editor is cancelled.
+			-- Clear the cached state and fetch again so Yazi reflects that result.
+			State.clear_root(root)
+			ya.emit("refresh", {})
+			return failure(operation, status and { status = status } or nil, err)
+		end
+		finish_interactive(root, operation)
 	end)
 end
 

@@ -1,5 +1,14 @@
 # 完了記録
 
+## 2026-09-04 — Native VCS commit editor flow (Issue #54)
+
+- Replaced plugin-owned commit message files and editor invocation with native
+  interactive Git/SVN commit commands.
+- Preserved typed target confirmation, Git `paths`/`staged` semantics, and
+  status refresh after commit success, cancellation, or failure.
+- Updated command-builder tests and commit-flow documentation. Live editor and
+  native Git/SVN UI acceptance remains a manual check.
+
 ## 2026-09-04 — Selectable VCS Log Spot field copy (Issue #52)
 
 - Added Date/Revision/Message columns to the VCS Log Spot table while keeping

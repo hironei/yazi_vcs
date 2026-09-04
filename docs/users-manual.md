@@ -97,7 +97,7 @@ require("vcs"):setup()
 | `status.ignore_externals` | `true` | SVN externalsを状態取得から除外 |
 | `info.enabled` | `true` | status bar右側のGit branch／SVN位置表示 |
 | `info.order` | `600` | リポジトリ位置表示の順序 |
-| `editor.command` | `"nvim"` | Commitメッセージ編集に使うコマンド |
+| `editor.command` | `"nvim"` | CLI Diff／Log表示のfallbackに使うコマンド。CommitはGit／SVNのeditor設定を使用 |
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
 | `path.external_style` | `"auto"` | 外部コマンドへ渡すパス形式の自動判定 |
@@ -109,7 +109,6 @@ require("vcs"):setup()
 | `signs.modified` など | `"M"` | 状態記号を変更。`conflict`、`missing`、`deleted`、`replaced`、`modified`、`property_modified`、`added`、`untracked`、`locked`、`external`、`ignored`、`clean`を指定可能 |
 | `update.git` | `{ "git", "pull", "--ff-only" }` | GitのUpdateコマンド |
 | `update.svn` | `{ "svn", "update" }` | SVNのUpdateコマンド |
-| `commit.allow_empty_message` | `false` | 空のCommitメッセージを許可するか |
 | `commit.git_mode` | `"paths"` | `"paths"`または`"staged"`。Gitで選択パスを暗黙stageするか、stage済み内容を使うか |
 | `diff.git_cli` | `{ "git", "diff", "--", "{targets}" }` | GitのCLI Diff |
 | `diff.svn_cli` | `{ "svn", "diff", "--", "{targets}" }` | SVNのCLI Diff |
@@ -217,7 +216,7 @@ desc = "Git switch"
 | `plugin vcs -- status` | `git --no-optional-locks -c core.quotePath= status --porcelain=v2 -z --untracked-files=all --ignored=matching -- <paths>` | `svn status --xml --no-ignore --ignore-externals -- <paths>` | statusを再取得。通常はfetcherが自動実行 |
 | `plugin vcs -- update` | `git pull --ff-only` | `svn update` | fast-forwardのみのGit pull、またはSVN update。認証入力が必要な場合はYaziを隠して端末入力を引き継ぎます |
 | `plugin vcs -- add` | `git add -- <targets>` | `svn add -- <targets>` | 選択対象、または未選択時のcwdをバージョン管理に追加（cwd scopeは確認が必要。Gitはstageも兼ねる） |
-| `plugin vcs -- commit` | `git commit --file=<message> -- <selected paths>` | `svn commit --file=<message> -- <selected paths>` | 対象を表示して確認後、エディタでメッセージを入力してCommit。未選択時はcwd scopeを明示 |
+| `plugin vcs -- commit` | `git commit -- <selected paths>` | `svn commit -- <selected paths>` | 対象を表示して確認後、Git／SVNのネイティブeditorでメッセージを入力してCommit。未選択時はcwd scopeを明示 |
 | `plugin vcs -- diff` | `git diff -- <targets>` | `svn diff -- <targets>` | CLI Diffをpagerで表示 |
 | `plugin vcs -- log` | `git log --decorate --oneline --graph -- <targets>` | `svn log -- <targets>` | CLI Logをpagerで表示 |
 | `plugin vcs -- discard` | `git restore -- <targets>` | `svn revert [--depth=infinity] -- <targets>` | ローカル変更を破棄。selected／cwdを問わずtyped confirmationが必要 |
@@ -225,6 +224,8 @@ desc = "Git switch"
 repository root、またはrepository rootをcwdとしているscopeのDiff／Logでは、`.`をpath filterとして渡さずリポジトリ全体を表示します。通常のselected pathやroot以外のcwdでは、そのpathだけを対象にします。
 
 Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みの内容をCommitします。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
+
+Commitのメッセージ編集はプラグインの`editor`設定を使用せず、Git／SVNの標準editor解決を使用します。Gitは`GIT_EDITOR`、`core.editor`、`VISUAL`、`EDITOR`の順、SVNは`SVN_EDITOR`、`editor-cmd`、`VISUAL`、`EDITOR`の順で解決します。Git／SVNが生成する変更ファイル一覧やcommit templateもそのまま表示されます。
 
 Discardでは未追跡ファイル・ignoredファイルを対象外とします。通常のDiscardは`discard`、ディレクトリを再帰的に破棄する場合は、既定で`revert`という文字の入力が必要です。
 

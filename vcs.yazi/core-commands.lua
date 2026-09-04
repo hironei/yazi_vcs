@@ -23,16 +23,16 @@ function M.svn_update(paths)
 	return args
 end
 
-function M.git_commit(message_file, paths, mode)
-	local args = { "commit", "--file=" .. message_file }
+function M.git_commit(paths, mode)
+	local args = { "commit" }
 	if mode ~= "staged" then
 		append_targets(args, paths)
 	end
 	return args
 end
 
-function M.svn_commit(message_file, paths)
-	return append_targets({ "commit", "--file=" .. message_file }, paths)
+function M.svn_commit(paths)
+	return append_targets({ "commit" }, paths)
 end
 
 function M.git_diff(paths)
