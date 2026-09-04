@@ -231,8 +231,8 @@ the other registration fails.
 `main.lua` implements `M:spot(job)`, which retains the temporary IDs while VCS
 Spot is active and removes stale IDs when the active flag is false. It builds rows from
 `core-log-preview.lua` and passes a styled `ui.Table` to `ya.spot_table`. The
-table has a fixed `Revision` column and a fill `Message` column; errors are
-represented by one fallback row. The IDs are removed by the Tab transition and
+table has fixed `Date` and `Revision` columns and a fill `Message` column;
+errors are represented by one fallback row. The IDs are removed by the Tab transition and
 close handlers before standard Spot or close is emitted. This lets repeated
 swipe operations keep using the VCS handler without permanently changing the
 standard Spotter configuration.
@@ -248,6 +248,23 @@ The dynamic-API calls are localized to `actions.lua` and `main.lua` so the
 Yazi-version-specific surface can be replaced if the experimental API changes.
 Tests cover the table row transformation; live acceptance must additionally
 verify the Yazi 26.8.15 Spot UI, Tab transition, and cancellation cleanup.
+
+## Issue #52 Design: Selectable VCS Log Field Copy
+
+`core-log-preview.lua` parses each Git/SVN entry into separate Date, Revision,
+and Message fields. The existing notification path uses a compatibility
+formatter, while `main.lua` renders all three fields in the Spot table and
+keeps the default `c c` cell-copy action on Message.
+
+The plugin stores the rendered entries and a one-based selected-row index in
+the shared state. Because a functional plugin action receives no Spot row
+index, the documented `[spot]` `j`/`k`/Up/Down bindings first invoke Yazi's
+standard arrow action and then update the plugin index. `spot-copy-revision`
+and `spot-copy-message` read the selected entry and copy only that field with
+`ya.clipboard`; they report a bounded warning when no VCS row is available.
+These tracking actions no-op outside VCS Log Spot, preserving normal Spot
+behavior. No changes are made to the standard `h`/`l` swipe, Tab transition,
+close cleanup, or normal Spotter registrations.
 
 ## Issue #50 Design: VCS Log Spot Swipe Follow
 

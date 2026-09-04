@@ -449,14 +449,46 @@ desc = "Close VCS log Spot"
 on = "<C-c>"
 run = "plugin vcs -- spot-close"
 desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "j"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Down>"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "k"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Up>"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "r" ]
+run = "plugin vcs -- spot-copy-revision"
+desc = "Copy selected VCS revision"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "m" ]
+run = "plugin vcs -- spot-copy-message"
+desc = "Copy selected VCS message"
 ```
 
 `log-spot` registers temporary file and directory Spotters, opens Spot for the
 currently hovered file or directory, and keeps the registrations while the VCS
 Spot is active. The standard Spot `h`/`l` swipe follows the new hovered item
-and refreshes the VCS log table. The table shows `Revision` and `Message`
-columns and supports the normal `j`/`k` and Up/Down row navigation. Tab in the
-VCS table opens the standard Spot for the same item; Esc, C-[, and C-c close
-the VCS Spot and clean up its temporary registrations. Tab in a standard Spot
-continues to close it. Yazi 26.8.15 or newer is required; the plugin does not
-permanently override the standard Spotter list.
+and refreshes the VCS log table. The table shows `Date`, `Revision`, and
+`Message` columns and supports the normal `j`/`k` and Up/Down row navigation.
+The documented movement bindings keep the selected row synchronized; `c v r`
+copies its Revision and `c v m` copies its Message. Tab in the VCS table opens
+the standard Spot for the same item; Esc, C-[, and C-c close the VCS Spot and
+clean up its temporary registrations. Tab in a standard Spot continues to
+close it. Yazi 26.8.15 or newer is required; the plugin does not permanently
+override the standard Spotter list.

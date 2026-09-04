@@ -23,6 +23,8 @@ end)
 M.clear_vcs_spotters = ya.sync(function(state)
 	state.vcs_spotter_ids = nil
 	state.vcs_spot_active = false
+	state.vcs_spot_entries = nil
+	state.vcs_spot_row = nil
 end)
 
 M.set_vcs_spot_active = ya.sync(function(state, active)
@@ -31,6 +33,35 @@ end)
 
 M.is_vcs_spot_active = ya.sync(function(state)
 	return state.vcs_spot_active == true
+end)
+
+M.set_vcs_spot_entries = ya.sync(function(state, entries)
+	state.vcs_spot_entries = entries
+	state.vcs_spot_row = #entries > 0 and 1 or nil
+end)
+
+M.get_vcs_spot_entry = ya.sync(function(state, row)
+	local entries = state.vcs_spot_entries
+	return entries and entries[row]
+end)
+
+M.get_vcs_spot_row = ya.sync(function(state)
+	return state.vcs_spot_row
+end)
+
+M.move_vcs_spot_row = ya.sync(function(state, direction)
+	if state.vcs_spot_active ~= true then return end
+	local entries = state.vcs_spot_entries or {}
+	if #entries == 0 then return end
+	local row = state.vcs_spot_row or 1
+	if direction == "next" then
+		row = row == #entries and 1 or row + 1
+	elseif direction == "prev" then
+		row = row == 1 and #entries or row - 1
+	else
+		return
+	end
+	state.vcs_spot_row = row
 end)
 
 M.remember = ya.sync(function(state, cwd, root, changed, vcs_info)

@@ -176,11 +176,43 @@ desc = "Close VCS log Spot"
 on = "<C-c>"
 run = "plugin vcs -- spot-close"
 desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "j"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Down>"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "k"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Up>"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "r" ]
+run = "plugin vcs -- spot-copy-revision"
+desc = "Copy selected VCS revision"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "m" ]
+run = "plugin vcs -- spot-copy-message"
+desc = "Copy selected VCS message"
 ```
 
 `log-spot` temporarily inserts file and directory VCS Spotters for the active
 VCS Spot. The standard Spot `h`/`l` swipe then re-renders the VCS log for the
-new hovered item. Use `j`/`k` or Up/Down to select rows. Tab removes the
+new hovered item. Use `j`/`k` or Up/Down to select rows; the documented bindings
+keep the plugin's copy target synchronized with that selection. `c v r` copies
+the selected row's revision and `c v m` copies its message. Tab removes the
 temporary state and opens Yazi's normal Spot for the same item. Esc, C-[, and
 C-c close the VCS Spot and remove the temporary registrations. When the normal
 Spot is active, the same Tab binding preserves the usual close behavior. No

@@ -1,5 +1,14 @@
 # 完了記録
 
+## 2026-09-04 — Selectable VCS Log Spot field copy (Issue #52)
+
+- Added Date/Revision/Message columns to the VCS Log Spot table while keeping
+  the existing notification format and default Message cell copy behavior.
+- Added documented `c v r` and `c v m` actions for copying the selected row's
+  Revision or Message, with row tracking synchronized to j/k and Up/Down.
+- Added parser, shared-state, and table-row tests; normal Spot, h/l swipe, Tab,
+  and close behavior remain unchanged.
+
 ## 2026-09-03 — Directory VCS Log Spot follow-up
 
 - Added a temporary directory Spotter alongside the file Spotter so

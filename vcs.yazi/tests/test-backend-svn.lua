@@ -305,7 +305,7 @@ return function(t)
 	end
 	local preview_entries = log_preview.parse_svn(capture_svn(log_preview.svn_args("tracked.txt")))
 	t.eq(#preview_entries, 5, "[integration] real svn log preview returns only the five newest entries")
-	t.truthy(preview_entries[1]:match("preview 6"), "[integration] real svn log preview keeps newest-first order")
+	t.truthy(preview_entries[1].message:match("preview 6"), "[integration] real svn log preview keeps newest-first order")
 
 	t.remove_tree(dir)
 end
