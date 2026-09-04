@@ -181,6 +181,7 @@ function M:spot(job)
 		end
 	end
 
+	State.set_vcs_spot_entries(entries or {})
 	local rows = {}
 	for _, row in ipairs(LogPreview.table_rows(entries or {}, fallback)) do rows[#rows + 1] = ui.Row(row) end
 	rows[1] = rows[1]:style(ui.Style():fg("green"))
@@ -189,10 +190,10 @@ function M:spot(job)
 		ui.Table(rows)
 			:area(ui.Pos { "center", w = 80, h = 10 })
 			:row(1)
-			:col(1)
+			:col(2)
 			:col_style(th.spot.tbl_col)
 			:cell_style(th.spot.tbl_cell)
-			:widths { ui.Constraint.Length(14), ui.Constraint.Fill(1) }
+			:widths { ui.Constraint.Length(12), ui.Constraint.Length(14), ui.Constraint.Fill(1) }
 	)
 end
 

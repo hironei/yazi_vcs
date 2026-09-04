@@ -31,7 +31,7 @@ return function(t)
 	end
 	local preview_entries = log_preview.parse_git(capture(log_preview.git_args("space name.txt")))
 	t.eq(#preview_entries, 5, "Git log preview returns only the five newest entries")
-	t.truthy(preview_entries[1]:match("preview 6"), "Git log preview keeps newest-first order for paths with spaces")
+	t.truthy(preview_entries[1].message:match("preview 6"), "Git log preview keeps newest-first order for paths with spaces")
 	local c = t.path_join(dir, "new file.txt")
 	file = assert(io.open(c, "w")); file:write("untracked\n"); file:close()
 	local empty = t.path_join(t.temp_dir(), "empty.txt")

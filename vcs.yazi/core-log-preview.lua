@@ -21,7 +21,8 @@ function M.git_args(relative_path)
 		"log",
 		"-n",
 		tostring(M.LIMIT),
-		"--format=%h%x09%s",
+		"--date=short",
+		"--format=%h%x09%ad%x09%s",
 		"--",
 		relative_path == "" and "." or relative_path,
 	}
@@ -47,9 +48,9 @@ function M.parse_git(stdout)
 	local entries = {}
 	for raw_line in tostring(stdout or ""):gmatch("[^\r\n]+") do
 		local line = trim(raw_line)
-		local revision, subject = line:match("^(%S+)%s+(.*)$")
-		if revision then
-			entries[#entries + 1] = trim(revision .. " " .. trim(subject))
+		local revision, date, subject = line:match("^(%S+)%s+(%S+)%s+(.*)$")
+		if revision and date then
+			entries[#entries + 1] = { date = trim(date), revision = trim(revision), message = trim(subject) }
 			if #entries == M.LIMIT then break end
 		end
 	end
@@ -92,7 +93,7 @@ function M.parse_svn(xml)
 		local date = trim(tag(body, "date")):match("^(%d%d%d%d%-%d%d%-%d%d)") or "-"
 		local message = first_non_empty_line(tag(body, "msg"))
 		if message == "" then message = "(no message)" end
-		entries[#entries + 1] = string.format("r%s %s %s %s", revision, author, date, message)
+		entries[#entries + 1] = { author = author, date = date, message = message, revision = "r" .. revision }
 		if #entries == M.LIMIT then break end
 	end
 	return entries
@@ -110,15 +111,26 @@ function M.parse(kind, stdout)
 	return {}
 end
 
+function M.format(entry)
+	if type(entry) ~= "table" then return tostring(entry or "") end
+	if entry.author then
+		return string.format("%s %s %s %s", entry.revision or "?", entry.author, entry.date or "-", entry.message or "")
+	end
+	return string.format("%s %s", entry.revision or "?", entry.message or "")
+end
+
 function M.table_rows(entries, fallback)
-	local rows = { { "Revision", "Message" } }
+	local rows = { { "Date", "Revision", "Message" } }
 	if #entries == 0 then
-		rows[#rows + 1] = { "-", fallback or "No history for the hovered item." }
+		rows[#rows + 1] = { "-", "-", fallback or "No history for the hovered item." }
 		return rows
 	end
 	for _, entry in ipairs(entries) do
-		local revision, message = tostring(entry):match("^(%S+)%s+(.*)$")
-		rows[#rows + 1] = { revision or "-", message or tostring(entry) }
+		rows[#rows + 1] = {
+			tostring(entry.date or "-"),
+			tostring(entry.revision or "-"),
+			tostring(entry.message or "-"),
+		}
 	end
 	return rows
 end

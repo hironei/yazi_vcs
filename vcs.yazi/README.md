@@ -72,14 +72,47 @@ desc = "Close VCS log Spot"
 on = "<C-c>"
 run = "plugin vcs -- spot-close"
 desc = "Close VCS log Spot"
+
+[[spot.prepend_keymap]]
+on = "j"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Down>"
+run = [ "arrow next", "plugin vcs -- spot-row-next" ]
+desc = "Next VCS log row"
+
+[[spot.prepend_keymap]]
+on = "k"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = "<Up>"
+run = [ "arrow prev", "plugin vcs -- spot-row-prev" ]
+desc = "Previous VCS log row"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "r" ]
+run = "plugin vcs -- spot-copy-revision"
+desc = "Copy selected VCS revision"
+
+[[spot.prepend_keymap]]
+on = [ "c", "v", "m" ]
+run = "plugin vcs -- spot-copy-message"
+desc = "Copy selected VCS message"
 ```
 
 Temporary VCS Spotters for files and directories are registered dynamically at
 the front of the Spotter list and remain registered while the VCS Spot is
 active, allowing the standard Spot `h`/`l` swipe to re-render the log for the
-new hovered item. The table supports the standard Spot row navigation keys
-(`j`/`k`, Up/Down). Tab while the VCS table is visible opens the normal Spot for
-the same item. Esc, C-[, and C-c close the VCS Spot and clean up the temporary
-registrations. When the normal Spot is visible, Tab keeps its default close
-behavior. Yazi 26.8.15 or newer is required for the dynamic Spotter API; no
-permanent catch-all Spotter is added.
+new hovered item. The table has `Date`, `Revision`, and `Message` columns and
+supports the standard Spot row navigation keys (`j`/`k`, Up/Down). The
+documented movement bindings keep the selected row synchronized for `c v r`
+and `c v m`, which copy the selected row's revision and message respectively.
+Tab while the VCS table is visible opens the normal Spot for the same item. Esc,
+C-[, and C-c close the VCS Spot and clean up the temporary registrations. When
+the normal Spot is visible, Tab keeps its default close behavior. Yazi 26.8.15
+or newer is required for the dynamic Spotter API; no permanent catch-all
+Spotter is added.

@@ -1937,7 +1937,7 @@ Git or SVN history entries. It does not alter the Preview area, install a
 previewer rule, or maintain per-tab toggle state. A later invocation is needed
 to show the log for a different hovered item.
 
-Git history uses `git --no-pager log -n 5 --format=%h%x09%s -- <relative-path>`. SVN history uses `svn log --xml -l 5 -- <relative-path>`. Paths are passed as separate command arguments and are always relative to the detected repository root. Git entries render the short revision and subject. SVN entries render the revision, author, ISO date, and the first non-empty message line.
+Git history uses `git --no-pager log -n 5 --date=short --format=%h%x09%ad%x09%s -- <relative-path>`. SVN history uses `svn log --xml -l 5 -- <relative-path>`. Paths are passed as separate command arguments and are always relative to the detected repository root. Git entries render the short revision and subject. SVN entries render the revision, author, ISO date, and the first non-empty message line.
 
 The feature uses the same detector and `runner.timeout_ms` boundary as existing
 read-only VCS operations. It never waits for authentication, never changes the
@@ -1981,8 +1981,8 @@ or closing the VCS Spot. The plugin must not add permanent
 `plugin.prepend_spotters` catch-all rules or hard-code Yazi's standard Spotter
 types.
 
-The Spot table has `Revision` and `Message` columns, contains at most five
-rows, and uses Yazi's normal row navigation. A missing repository, outside
+The Spot table has `Date`, `Revision`, and `Message` columns, contains at most
+five rows, and uses Yazi's normal row navigation. A missing repository, outside
 root path, untracked file, empty history, command failure, unsupported dynamic
 API, or cleanup failure must produce a bounded in-Spot message and leave no
 temporary registration behind.
@@ -2000,6 +2000,7 @@ Acceptance criteria:
 1. `plugin vcs -- log-spot` displays the hovered Git/SVN item's latest five
    entries in a selectable Spot table.
 2. `j`/`k` and Up/Down move the standard Spot row selection.
+
 3. The temporary Spotters remain while VCS Spot is active, are removed before
    standard Spot or close transitions, and are cleaned up on registration
    errors or stale-state recovery when cleanup is possible.
@@ -2011,6 +2012,17 @@ Acceptance criteria:
    item's VCS history and does not accumulate Spotter registrations.
 7. Existing `log-preview`, CLI Log, Preview, status, Changes View, Git, and
    SVN behavior remains available.
+
+## Issue #52 Addendum: Selectable VCS Log Field Copy
+
+The VCS Log Spot table displays the latest five Git or SVN entries as
+structured `Date`, `Revision`, and `Message` fields. The `[spot]` keymap
+provides `c v r` to copy the selected row's Revision and `c v m` to copy the
+selected row's Message. The documented row movement bindings keep the plugin's
+selected-row state synchronized with Yazi's standard Spot selection; when the
+standard Spot is active, those plugin actions are no-ops. Existing `h`/`l`, Tab,
+close, normal Spot, and notification behavior remain unchanged, and clipboard
+contents are limited to the selected field.
 
 ## Issue #50 Addendum: VCS Log Spot Swipe Follow
 

@@ -546,7 +546,7 @@ function M.log_preview()
 				if #entries == 0 then
 					lines[#lines + 1] = LogPreview.message(nil, "empty")
 				else
-					for _, entry in ipairs(entries) do lines[#lines + 1] = entry end
+					for _, entry in ipairs(entries) do lines[#lines + 1] = LogPreview.format(entry) end
 				end
 			end
 		end
@@ -586,6 +586,22 @@ function M.log_spot()
 	end
 	State.set_vcs_spotters(ids)
 	ya.emit("spot", { force = true })
+end
+
+function M.spot_row(direction)
+	if not State.is_vcs_spot_active() then return end
+	State.move_vcs_spot_row(direction)
+end
+
+function M.spot_copy(field)
+	if not State.is_vcs_spot_active() then return end
+	local row = State.get_vcs_spot_row()
+	local entry = row and State.get_vcs_spot_entry(row)
+	if not entry then return Notify.warn("No VCS log row is selected.") end
+	local value = entry[field]
+	if not value or value == "" then return Notify.warn("The selected VCS log row has no %s.", field) end
+	ya.clipboard(value)
+	Notify.info("Copied VCS %s: %s", field, value)
 end
 
 function M.spot_tab()
@@ -725,6 +741,10 @@ function M.entry(action, args)
 		log = function() return M.log(named_external(args)) end,
 		["log-preview"] = M.log_preview,
 		["log-spot"] = M.log_spot,
+		["spot-row-next"] = function() return M.spot_row("next") end,
+		["spot-row-prev"] = function() return M.spot_row("prev") end,
+		["spot-copy-revision"] = function() return M.spot_copy("revision") end,
+		["spot-copy-message"] = function() return M.spot_copy("message") end,
 		["spot-tab"] = M.spot_tab,
 		["spot-close"] = M.spot_close,
 		discard = M.discard,
