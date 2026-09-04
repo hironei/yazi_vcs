@@ -219,7 +219,7 @@ Spot is active, the same Tab binding preserves the usual close behavior. No
 permanent catch-all Spotter is installed, and the existing `log-preview`, `g v p`
 Push, and `g v l` CLI Log bindings remain available.
 
-既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時は現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。未選択のcwd scopeでAddを実行する場合は、配下を広く追加するため`add`の入力確認が必要です。`copy-url`は選択対象（複数選択時は先頭、未選択時はcwd）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
+既存の`update`、`add`、`commit`、`discard`、Gitの`push`／`branch`／`switch`も利用できます。`add`は選択対象（複数選択時は選択群、未選択時は現在のディレクトリ）を`git add`／`svn add`でバージョン管理に追加します。未選択のcwd scopeでAddを実行する場合は、配下を広く追加するため`add`の入力確認が必要です。Commitは対象確認後にGit／SVNのネイティブcommit editorを起動するため、変更ファイル一覧などのVCS標準templateが表示されます。Commitのeditorはプラグイン設定ではなく、Git／SVNのユーザー設定で解決されます。`copy-url`は選択対象（複数選択時は先頭、未選択時はcwd）のURL、`copy-url-revision`はURLに対象のリビジョンまたはコミットを付けた値をクリップボードへコピーします。`g`→`v`の後に操作キーを続けて入力します。
 
 ## 外部Diff／Log設定
 

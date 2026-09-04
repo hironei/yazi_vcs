@@ -10,15 +10,14 @@ M.defaults = {
 	},
 	status = { order = 500, aggregate_directories = true, ignore_externals = true },
 	info = { enabled = true, order = 600 },
-	-- The editor always runs under ui.hide() and is always waited for
-	-- (requirements §11.1/§11.4) — a non-blocking GUI editor would need a
-	-- different commit flow entirely, so there is no `wait` toggle here.
+	-- Used by the pager/editor fallback for CLI Diff/Log. Commit delegates
+	-- editor resolution to Git/SVN instead of using this setting.
 	editor = { command = "nvim", args = {} },
 	pager = { command = "less", args = { "-R" } },
 	update = { git = { "git", "pull", "--ff-only" }, svn = { "svn", "update" } },
 	-- Target scope is always selected > cwd (requirements
 	-- §7); there is no per-operation scope-restriction knob.
-	commit = { allow_empty_message = false, git_mode = "paths" },
+	commit = { git_mode = "paths" },
 	diff = {
 		git_cli = { "git", "diff", "--", "{targets}" },
 		svn_cli = { "svn", "diff", "--", "{targets}" },

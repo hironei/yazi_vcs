@@ -117,7 +117,7 @@ Status、VCS info、revision、差分確認、CLI Diff/Log、Branch検証・一�
 
 ### 5.2 対話型とGUI
 
-Update、Commitエディタ、pager、TUI外部ツール、Pushは`Runner.interactive()`を使う。`ui.hide()`取得後、command構築・status待ちを`pcall`で保護し、処理結果にかかわらずpermitをdropする。UpdateとPushは認証入力のためstdin/stdout/stderrを`Command.INHERIT`にする。
+Update、ネイティブCommit、pager、TUI外部ツール、Pushは`Runner.interactive()`を使う。`ui.hide()`取得後、command構築・status待ちを`pcall`で保護し、処理結果にかかわらずpermitをdropする。Update、Commit、Pushは認証またはeditor入力のためstdin/stdout/stderrを`Command.INHERIT`にする。
 
 GUIは`Runner.launch()`で`ya.emit("shell", { orphan = true })`を使い、終了を待たない。外部設定はcommandと引数配列を分離し、shell文字列の組み立てはGUI起動の引用処理以外で行わない。
 
@@ -130,7 +130,7 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 ## 7. 対話操作の個別仕様
 
 - Update: 設定配列を展開して`Runner.interactive`で実行。成功後にrefresh、失敗時は通知。
-- Commit: 一時メッセージファイルを作成し、エディタ終了後に内容を確認。Git `paths`モードは選択パスだけを暗黙stageする。
+- Commit: typed confirmation後、Git/SVNのネイティブcommit commandをinteractiveに起動する。Git `paths`モードは選択パスだけを暗黙stageし、Git/SVNが標準editor解決とcommit message templateを管理する。
 - Diff/Log: CLI出力をタイムアウト付きRunnerで収集し、一時ファイルをpager/editorで表示。
 - Discard: tracked対象だけを確認入力後に復元。未追跡／ignoredは除外。
 - Push/Branch/Switch: Git専用Runner経路を使い、force操作・auto-stash・強制switchは行わない。
@@ -281,3 +281,40 @@ and the active flag. The close bindings are documented for Esc, C-[, and C-c;
 when the flag is false, the existing Tab bridge still emits the normal close
 action. `M:spot(job)` only removes stale IDs when the active flag is already
 false, preventing a valid swipe-triggered VCS render from losing its matcher.
+
+## Issue #54 Design: Native VCS Commit Editor Flow
+
+The commit action keeps its existing scope resolver, typed confirmation, root
+lock, and post-operation refresh behavior. After confirmation it builds only
+the native VCS command arguments and invokes `Runner.interactive()` with the
+repository root as `cwd`:
+
+```text
+Commit
+  |
+  +-- Git / paths mode  -> git commit -- <targets>
+  +-- Git / staged mode -> git commit
+  +-- SVN               -> svn commit -- <targets>
+```
+
+No `--file`, `--editor`, `--editor-cmd`, `--status`, or `-v` option is added by
+the plugin. Git and SVN therefore resolve the user's configured editor and
+generate their own commit-message template, including the changed-file list
+and any configured template, status, verbose, or hook behavior. The existing
+`editor` setting remains available for CLI Diff/Log display fallback only.
+
+The native command owns editor cancellation, empty-message handling, hooks,
+and commit errors. On any command failure, `actions.lua` clears the cached
+root state and emits a refresh before reporting the VCS error. This is needed
+because Git path-mode commit may update the index before the editor returns.
+Successful commits use the existing interactive completion path, which also
+clears state and refreshes status. No commit-message temporary file is created
+by the plugin.
+
+`core-commands.lua` is the pure seam for the three argument shapes, and its
+unit tests assert that message-file arguments are absent. The Git integration
+test configures a temporary repository-local editor, verifies that the native
+commit template contains the status heading and selected path, and confirms
+that a staged path outside the selection remains staged. Live Yazi terminal,
+Git editor, and SVN editor acceptance remain environment-dependent manual
+checks.

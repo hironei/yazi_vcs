@@ -15,7 +15,7 @@
 |---|---|---|---|
 | モジュール構成 | `core/`、`backends/`、`actions/`サブディレクトリ | Yaziの`require`はネストしたパスを解決できない | §5.2 をフラット構成へ変更 |
 | ステータス取得契機 | 独自のキャッシュ／debounce機構 | Yaziのfetcher機構を使わないと、そもそも起動契機が存在しない | §8.7、§9、§24 をfetcher前提へ変更 |
-| Git Commit | `git commit --file=<f> -- <targets>`で「自動`git add`を行わない」 | 同コマンドは指定パスを暗黙にstageする（実測で確認） | §11.2、§20、§25 を実挙動に合わせて修正 |
+| Git Commit | `git commit --file=<f> -- <targets>`でメッセージを編集する | `--file`によりGit標準のcommit message templateを利用できない | §11、§20、§25をVCSネイティブeditor方式へ変更 |
 
 ### 0.2 検証で判明した仕様上の欠落
 
@@ -211,7 +211,7 @@ backend = {
     parse_status = function(raw) end,
     status_command = function(root, paths) end,
     update = function(root, options) end,
-    commit = function(root, targets, message_file, options) end,
+    commit = function(root, targets, options) end,
     diff = function(root, targets, options) end,
     log = function(root, targets, options) end,
     discard = function(root, targets, options) end,
@@ -673,54 +673,39 @@ Update は認証入力を要求しうる。§21.2 のターミナル占有機構
 
 1. 対象ファイル決定
 2. VCSルート判定
-3. 一時メッセージファイル作成
-4. `ui.hide()`でターミナルを占有し、設定されたエディタを起動
-5. エディタ終了待ち
+3. typed confirmationで対象範囲を確認
+4. `ui.hide()`でターミナルを占有し、VCSのcommit commandを起動
+5. VCSが標準設定に従ってeditorを解決し、editor終了を待つ
 6. permitを`drop()`してTUIへ復帰
-7. メッセージ内容確認
-8. 空メッセージならキャンセル
-9. Commitコマンド実行
-10. 結果表示
-11. state破棄と再fetch
+7. VCSの終了結果を通知
+8. state破棄と再fetch（成功、キャンセル、失敗）
 
 ### 11.2 Git
 
-**【初版から変更 — 初版の記述は事実誤認】**
+**【Issue #54で変更】**
 
-初版は`git commit --file=<f> -- <targets>`について「初期版では自動`git add`を行わない」「選択ファイルが未stageの場合、Git CLIの結果をそのまま表示する」としていたが、実測により誤りであることを確認した。
+Gitのcommit message編集は、Gitが提供するネイティブeditor flowへ委譲する。これにより、ユーザーの`commit.status`、`commit.verbose`、`commit.template`、hooksなどの設定をプラグインが上書きせず、commit message bufferへ変更ファイル一覧などの標準情報を表示できる。
 
-```text
-$ echo mod >> t.txt              # 未stageの変更
-$ git commit --file=/tmp/m.txt -- t.txt
-[main 0b2956b] msg
- 1 file changed, 1 insertion(+)  # rc=0、コミットされた
-```
-
-`git commit`にpathspecを渡すと git は `--only` モードで動作し、**指定パスの作業ツリー内容をその場でstageしてコミットする**。したがって初版の §11.2、§20 の`auto_stage_git = false`、§25 の「自動stage禁止」は、§11.2 自身が指定するコマンドによって破られていた。
-
-本改訂では**path モードを既定とする**。理由：
-
-- SVNのcommitは元来パス指定であり、pathモードを既定とすることで §2「GitとSVNで可能な限り操作感を統一する」を満たせる
-- stage対象は、ユーザーがYazi上で選択したpath、または確認ダイアログに明示したcwd scopeに限定されるため、暗黙的で予期しない挙動にはならない
-- pathモードは**index上の他のstage済みファイルをコミットしない**ため、作業中のstageを巻き込む事故は発生しない
+`git commit`にpathspecを渡すとGitは`--only`モードで動作し、指定パスの作業ツリー内容をその場でstageしてコミットする。この既存のpath scope semanticsは維持する。
 
 既定（`commit.git_mode = "paths"`）：
 
 ```bash
-git commit --file=<message-file> -- <targets...>
+git commit -- <targets...>
 ```
 
 代替（`commit.git_mode = "staged"`）：
 
 ```bash
-git commit --file=<message-file>
+git commit
 ```
 
 要件：
 
 - 確認画面に「対象パスは自動的にstageされる」旨を明示する。cwd scopeでは対象ディレクトリ配下が対象になることも明示する
 - `git_mode = "staged"`では対象パスを渡さず、stage済みの内容のみをコミットする
-- 未追跡ファイルをpathspecに含めた場合、gitは`pathspec did not match`で失敗する。この場合は事前に検出し、「未追跡ファイルは`git add`が必要」と通知する
+- Gitのeditor解決とcommit message templateは、`GIT_EDITOR`、`core.editor`、`VISUAL`、`EDITOR`、Gitのfallbackの標準優先順位へ委譲する
+- editorのキャンセル、空メッセージ、hook失敗、commit失敗はGitの終了結果として扱い、プラグイン独自のメッセージファイル検証は行わない
 
 将来拡張として以下を分離可能とする。
 
@@ -730,52 +715,24 @@ git commit --file=<message-file>
 ### 11.3 SVN
 
 ```bash
-svn commit --file=<message-file> -- <targets...>
+svn commit -- <targets...>
 ```
 
-> 未検証：SVNのサブコマンドが`--`をオプション終端として受理するかを §26.4 で確認すること。受理しない場合、パスが`-`で始まるケースの回避策（`./`前置）を実装する。
+SVNのcommit message編集は、`--editor-cmd`をプラグインから渡さず、`SVN_EDITOR`、`editor-cmd`、`VISUAL`、`EDITOR`、SVNのfallbackの標準優先順位へ委譲する。変更ファイル一覧などのcommit message bufferもSVNに生成させる。
 
 ### 11.4 エディタ設定
 
-```lua
-editor = {
-    command = "nvim",
-    args = {},
-    wait = true,
-}
-```
+Commitについては`vcs.yazi`の`editor`設定を使用しない。Git/SVNのユーザー設定でeditorを構成する。commit commandは`ui.hide()`と標準入出力の継承だけを担当し、editor commandやeditor引数を組み立てない。
 
-Visual Studio Code例：
-
-```lua
-editor = {
-    command = "code",
-    args = { "--wait" },
-    wait = true,
-}
-```
-
-エディタは §21.2 に従い、`stdin`／`stdout`／`stderr`を`Command.INHERIT`に設定したうえで`ui.hide()`配下で起動する。
+`editor`設定自体はCLI Diff/Logの表示先が未設定の場合のfallbackとして残す。
 
 ### 11.5 一時ファイル
 
-- OS標準の一時ディレクトリを利用する
-- ファイル名衝突を避ける
-- Commit終了後に削除する
-- エラー時も可能な限り削除する
-- UTF-8で扱う
-- ファイルパーミッションは所有者のみ読み書き可能とする
+Commit messageのための一時ファイルは`vcs.yazi`では作成しない。Git/SVNが管理するネイティブなcommit message bufferを使用する。Diff/Log出力表示など、Commit以外の既存用途の一時ファイルはこの要件の対象外とする。
 
 ### 11.6 キャンセル条件
 
-以下の場合はCommitを実行しない。
-
-- エディタ起動失敗
-- エディタ異常終了（終了コード非0）
-- メッセージが空（空白・コメント行のみを含む）
-- ユーザーキャンセル
-- 対象ファイルなし
-- VCSルート検出失敗
+対象なし、VCSルート検出失敗、またはtyped confirmationのキャンセル時はCommitを実行しない。Commit開始後のeditorキャンセル、空メッセージ、hook失敗、コマンド失敗は、Git/SVNの終了結果を通知してYaziへ戻る。これらの場合もcached stateを破棄し、status refreshを要求する。
 
 ---
 
@@ -1370,7 +1327,6 @@ require("vcs"):setup({
     },
 
     commit = {
-        allow_empty_message = false,
         git_mode = "paths",             -- "paths" | "staged"
     },
 
@@ -1426,7 +1382,7 @@ require("vcs"):setup({
 - `log.git_cli_all`を追加（§13.2）
 - `runner.timeout_ms`を追加（§21.1）
 - 配列型の設定値は深いマージではなく、ユーザー指定値で全体を置換する
-- `commit.default_scope`、`editor.wait`、`discard.confirm`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
+- `commit.default_scope`、`editor.wait`、`commit.allow_empty_message`、`discard.confirm`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
 
 ---
 
@@ -1689,7 +1645,7 @@ svn checkout "file://<tmp>/repo" <tmp>/wc
 2. `svn info --show-item wc-root`が対象SVNバージョンで利用可能であること
 3. **SVNのサブコマンドが`--`をオプション終端として受理すること**（受理しない場合、`-`始まりパスへの`./`前置を実装する）
 4. `svn revert --depth=infinity`が期待どおり再帰的に動作すること
-5. `svn commit --file=<f>`がUTF-8のメッセージファイルを正しく扱うこと（特にWindows環境）
+5. `svn commit -- <targets>`がネイティブeditorを起動し、変更ファイル一覧をcommit message bufferへ表示すること（特にWindows環境）
 6. SVN status XMLにおけるtree-conflictの表現形式
 
 ### 26.5 Yazi 26.8.15実機確認（新設、Issue #38）
