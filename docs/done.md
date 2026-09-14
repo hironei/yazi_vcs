@@ -1,5 +1,15 @@
 # 完了記録
 
+## 2026-09-14 — VCS-aware file rename and split-tabs move (Issue #56)
+
+- Added optional `g v R` rename and `m v m` move-to-other-pane actions using root-relative `git mv` or local working-copy `svn move` arguments.
+- Added same-working-tree, destination, collision, directory-descendant, cancellation, and partial-failure refresh handling.
+- Escaped SVN peg-revision syntax in literal source paths and verified WC-to-WC scheduling with a real temporary SVN repository.
+- Updated the root README, plugin README, user manual, requirements, and design documents.
+- Added helper and action tests plus temporary-repository Git and SVN integration coverage for files, directories, spaces, leading dashes, special characters, and peg-like SVN paths; command/action tests cover Unicode argv preservation.
+- Windows Lua 5.5 suite: 490 passed / 0 failed. Live Yazi and split-tabs interaction remains pending manual validation.
+- Issue: [#56](https://github.com/hironei/yazi_vcs/issues/56)
+
 ## 2026-09-04 — Native VCS commit editor flow (Issue #54)
 
 - Replaced plugin-owned commit message files and editor invocation with native

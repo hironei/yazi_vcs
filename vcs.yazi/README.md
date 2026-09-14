@@ -23,6 +23,33 @@ VCS操作の対象は、selectedがあればselected、なければcwdです。h
 
 Search URLs are normalized to physical paths before VCS detection or CLI execution. In the Changes View, Diff, Log, Add, Commit, and Discard use only explicit selections. An empty selection does not fall back to cwd or the repository. Git untracked Diff is rendered as an all-added no-index diff; untracked files are excluded from Git Log with a notification.
 
+## VCS-Aware File Rename and Other-Pane Move (Issue #56)
+
+Add these optional bindings to `<YAZI_CONFIG_HOME>/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "R" ]
+run = "plugin vcs -- rename"
+desc = "Rename a version-controlled path"
+
+[[mgr.prepend_keymap]]
+on = [ "m", "v", "m" ]
+run = "plugin vcs -- move-other-pane"
+desc = "Move items to the other VCS pane"
+```
+
+`g v R` renames exactly one selected file or directory; with no selection it
+uses the hovered item. Enter the new basename to rename it in the same parent
+directory. `m v m` moves all selected files or directories, or the hovered item
+when none are selected, to the other pane's current directory in the active
+two-tab `terrakok/split-tabs.yazi` layout. In Git they run `git mv`; in SVN
+they run local working-copy `svn move` from the resolved root. Both preserve
+literal path arguments and reject paths outside the same VCS root or existing
+targets. SVN moves do not mutate repository URLs. Rename cannot be used with
+multiple selections. Canceling the rename prompt leaves the working copy
+unchanged.
+
 ## VCS Log Preview
 
 Add the following user-defined key binding to show a temporary log notification:

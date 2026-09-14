@@ -28,6 +28,8 @@ return function(t)
 	t.eq(path.strip_prefix("C:/repo", "C:/other/file.txt"), nil, "strip_prefix returns nil outside root")
 	t.eq(path.strip_prefix("C:/", "C:/Users/foo.txt"), "Users/foo.txt", "strip_prefix handles a bare drive root")
 	t.eq(path.strip_prefix("/", "/tmp/file.txt"), "tmp/file.txt", "strip_prefix handles a POSIX root")
+	t.eq(path.basename("/repo/src/a file-日本語.txt"), "a file-日本語.txt", "basename preserves spaces and Unicode")
+	t.eq(path.basename("C:\\repo\\-dash.txt"), "-dash.txt", "basename normalizes Windows separators")
 
 	t.eq(path.join_native("C:/repo", "sub/file.txt", true), "C:\\repo\\sub\\file.txt", "join_native windows")
 	t.eq(path.join_native("/repo", "sub/file.txt", false), "/repo/sub/file.txt", "join_native posix")

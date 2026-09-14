@@ -274,11 +274,88 @@ return function(t)
 	t.make_dir(wc)
 	t.run_in_dir(wc, ("svn checkout -q --non-interactive %s ."):format(t.shell_quote(t.to_file_url(repo))))
 	local function runwc(cmd)
-		t.run_in_dir(wc, cmd)
+		return t.run_in_dir(wc, cmd)
+	end
+	local function svn_command(args)
+		local quoted = {}
+		for _, arg in ipairs(args) do quoted[#quoted + 1] = t.shell_quote(arg) end
+		return "svn " .. table.concat(quoted, " ")
+	end
+	local function run_svn(args)
+		return t.run_in_dir(wc, svn_command(args))
+	end
+	local function capture_svn(args)
+		local log_proc = t.capture_in_dir(wc, svn_command(args))
+		local log_out = log_proc:read("*a")
+		log_proc:close()
+		return log_out
 	end
 	runwc('echo base> tracked.txt')
 	runwc("svn add -q tracked.txt")
 	runwc("svn commit -q --non-interactive -m init")
+
+	-- Exercise native working-copy moves with actual literal argv. SVN records
+	-- these as local add-with-history changes; nothing here changes repository URLs.
+	local function write_file(path, content)
+		local file, err = io.open(path, "wb")
+		assert(file, err)
+		file:write(content)
+		file:close()
+	end
+	local rename_source = t.path_join(wc, "rename source")
+	local rename_directory_source = t.path_join(wc, "rename directory")
+	local directory_source = t.path_join(wc, "directory with spaces")
+	local destination_dir = t.path_join(wc, "destination")
+	t.make_dir(rename_source)
+	t.make_dir(rename_directory_source)
+	t.make_dir(directory_source)
+	t.make_dir(destination_dir)
+	write_file(t.path_join(rename_source, "old [ab].txt"), "rename")
+	write_file(t.path_join(rename_directory_source, "inside.txt"), "directory rename")
+	write_file(t.path_join(rename_source, "literal@123.txt"), "peg")
+	write_file(t.path_join(rename_source, "ending@"), "ending at sign")
+	write_file(t.path_join(wc, "-dash [ab].txt"), "dash")
+	write_file(t.path_join(wc, "space name.txt"), "space")
+	write_file(t.path_join(directory_source, "inside.txt"), "directory")
+	local commands = require("core-commands")
+	local add_status = run_svn(commands.svn_add({ "rename source", "rename directory", "-dash [ab].txt", "space name.txt", "directory with spaces", "destination" }))
+	t.truthy(add_status, "[integration] svn add prepares file-move fixtures")
+	local fixture_commit = runwc('svn commit --non-interactive -m "move fixtures"')
+	t.truthy(fixture_commit, "[integration] SVN move fixtures commit successfully")
+	local rename_status = run_svn(commands.svn_move({ "rename source/old [ab].txt" }, "rename source/new name [x].txt"))
+	t.truthy(rename_status, "[integration] svn move accepts -- and a spaced rename destination")
+	local function exists(path)
+		local file = io.open(path, "rb")
+		if not file then return false end
+		file:close()
+		return true
+	end
+	t.truthy(exists(t.path_join(rename_source, "new name [x].txt")), "[integration] svn move renames a tracked file in the working copy")
+	t.falsy(exists(t.path_join(rename_source, "old [ab].txt")), "[integration] svn move removes the old local path")
+	local directory_rename = run_svn(commands.svn_move({ "rename directory" }, "renamed directory"))
+	t.truthy(directory_rename, "[integration] svn move renames a versioned directory")
+	t.truthy(exists(t.path_join(t.path_join(wc, "renamed directory"), "inside.txt")), "[integration] svn move preserves a directory's contents on rename")
+	t.falsy(exists(rename_directory_source), "[integration] svn move removes the old directory name")
+	local peg_rename = run_svn(commands.svn_move({ "rename source/literal@123.txt" }, "rename source/literal@456.txt"))
+	t.truthy(peg_rename, "[integration] svn move escapes a filename that resembles a peg revision")
+	t.truthy(exists(t.path_join(rename_source, "literal@456.txt")), "[integration] peg-like SVN filename is renamed literally")
+	local ending_peg_rename = run_svn(commands.svn_move({ "rename source/ending@" }, "rename source/ending@renamed@"))
+	t.truthy(ending_peg_rename, "[integration] svn move escapes a source ending in @ without changing the exact destination")
+	t.truthy(exists(t.path_join(rename_source, "ending@renamed@")), "[integration] destination ending in @ is kept exact")
+	local move_status = run_svn(commands.svn_move(
+		{ "-dash [ab].txt", "space name.txt", "directory with spaces" },
+		"destination"
+	))
+	t.truthy(move_status, "[integration] svn move accepts several sources and an existing destination directory")
+	t.truthy(exists(t.path_join(destination_dir, "-dash [ab].txt")), "[integration] svn move handles a leading-dash basename")
+	t.truthy(exists(t.path_join(destination_dir, "space name.txt")), "[integration] svn move handles a spaced filename")
+	t.truthy(exists(t.path_join(t.path_join(destination_dir, "directory with spaces"), "inside.txt")), "[integration] svn move transfers a versioned directory")
+	local move_changes = svn.parse_status_xml(capture_svn(svn.status_args({
+		"rename source/old [ab].txt", "destination/-dash [ab].txt", "destination/space name.txt", "destination/directory with spaces/inside.txt",
+	})))
+	t.eq(move_changes["rename source/old [ab].txt"], "deleted", "[integration] svn move schedules the old source for deletion")
+	t.eq(move_changes["destination/-dash [ab].txt"], "added", "[integration] svn move schedules history-aware destination additions")
+
 	runwc('echo changed>> tracked.txt')
 	runwc('echo x> new.txt')
 
@@ -294,14 +371,6 @@ return function(t)
 	for index = 1, 6 do
 		runwc(("echo revision %d %s>> tracked.txt"):format(index, string.rep("x", index)))
 		runwc(("svn commit -q --non-interactive -m \"preview %d\""):format(index))
-	end
-	local function capture_svn(args)
-		local quoted = {}
-		for _, arg in ipairs(args) do quoted[#quoted + 1] = t.shell_quote(arg) end
-		local log_proc = t.capture_in_dir(wc, "svn " .. table.concat(quoted, " "))
-		local log_out = log_proc:read("*a")
-		log_proc:close()
-		return log_out
 	end
 	local preview_entries = log_preview.parse_svn(capture_svn(log_preview.svn_args("tracked.txt")))
 	t.eq(#preview_entries, 5, "[integration] real svn log preview returns only the five newest entries")

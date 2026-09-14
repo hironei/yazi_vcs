@@ -92,6 +92,14 @@ function M.parent(path)
 	return parent
 end
 
+--- Return the final path component after normalizing separators.
+---@param path string
+---@return string?
+function M.basename(path)
+	path = M.trim_trailing_slash(M.to_slash(path))
+	return path:match("([^/]+)$")
+end
+
 --- Compare filesystem paths for repository identity.
 --- Windows drive and UNC paths are case-insensitive; POSIX paths are not.
 ---@param left string

@@ -136,7 +136,23 @@ desc = "Copy VCS URL"
 on = [ "g", "v", "U" ]
 run = "plugin vcs -- copy-url-revision"
 desc = "Copy VCS URL with revision"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "R" ]
+run = "plugin vcs -- rename"
+desc = "Rename a version-controlled path"
+[[mgr.prepend_keymap]]
+on = [ "m", "v", "m" ]
+run = "plugin vcs -- move-other-pane"
+desc = "Move items to the other VCS pane"
 ```
+
+`g v R` renames one selected item, or the hovered item when nothing is
+selected, in its current parent directory. `m v m` moves selected items (or
+the hovered item) into the other pane's current directory and is intended for
+the active two-tab layout from [`terrakok/split-tabs.yazi`](https://github.com/terrakok/split-tabs.yazi).
+Both actions use `git mv` in a Git working tree or local working-copy
+`svn move` in an SVN working copy. All paths must belong to the same VCS root;
+SVN operations stay local and do not mutate repository URLs.
 
 ## VCS Log Preview
 

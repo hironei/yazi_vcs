@@ -16,4 +16,6 @@ return function(t)
 	t.deep_eq(c.git_discard({ "a.txt" }), { "restore", "--", "a.txt" }, "git discard")
 	t.deep_eq(c.git_add({ "a.txt", "b.txt" }), { "add", "--", "a.txt", "b.txt" }, "git add")
 	t.deep_eq(c.svn_add({ "日本語.txt" }), { "add", "--", "日本語.txt" }, "svn add keeps argument boundaries")
+	t.deep_eq(c.svn_move({ "-old [ab].txt", "folder/a b.txt", "name@123.txt", "folder/end@" }, "destination@45"), { "move", "--", "-old [ab].txt", "folder/a b.txt", "name@123.txt@", "folder/end@@", "destination@45" }, "svn move keeps literal argv boundaries and escapes source peg-revision syntax")
+	t.deep_eq(c.svn_move({ "日本語.txt" }, "移動先"), { "move", "--", "日本語.txt", "移動先" }, "svn move preserves Unicode working-copy paths")
 end

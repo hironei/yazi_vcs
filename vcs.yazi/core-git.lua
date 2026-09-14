@@ -23,6 +23,12 @@ end
 function M.rename_branch_args(old_name, new_name)
 	if old_name and old_name ~= "" then return { "branch", "-m", old_name, new_name } end; return { "branch", "-m", new_name }
 end
+function M.move_args(paths, destination)
+	local args = { "--literal-pathspecs", "mv", "--" }
+	for _, path in ipairs(paths or {}) do args[#args + 1] = path end
+	args[#args + 1] = destination
+	return args
+end
 function M.delete_branch_args(name) return { "branch", "-d", name } end
 function M.switch_branch_args(name, remote, explicit_local)
 	if remote and not explicit_local then return { "switch", "--track", remote } end
