@@ -1,4 +1,5 @@
 -- core-git.lua
+local Path = require(".core-path")
 local M = {}
 function M.current_branch_args() return { "branch", "--show-current" } end
 function M.upstream_args() return { "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}" } end
@@ -22,6 +23,25 @@ function M.create_branch_args(name, start_point, switch)
 end
 function M.rename_branch_args(old_name, new_name)
 	if old_name and old_name ~= "" then return { "branch", "-m", old_name, new_name } end; return { "branch", "-m", new_name }
+end
+function M.validate_basename(name)
+	name = tostring(name or "")
+	if name == "" then return false, "name is empty" end
+	if name == "." or name == ".." then return false, "dot path components are not allowed" end
+	if name:find("[/\\%z\r\n]") then return false, "enter one filename without path separators or line breaks" end
+	return true, nil
+end
+function M.rename_path(source, new_name)
+	local valid, reason = M.validate_basename(new_name)
+	if not valid then return nil, reason end
+	local parent = tostring(source):match("^(.*)/[^/]+$")
+	return parent and parent ~= "" and (parent .. "/" .. new_name) or new_name, nil
+end
+function M.move_args(paths, destination)
+	local args = { "--literal-pathspecs", "mv", "--" }
+	for _, path in ipairs(paths or {}) do args[#args + 1] = path end
+	args[#args + 1] = destination
+	return args
 end
 function M.delete_branch_args(name) return { "branch", "-d", name } end
 function M.switch_branch_args(name, remote, explicit_local)

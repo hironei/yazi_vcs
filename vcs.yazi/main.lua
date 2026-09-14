@@ -12,6 +12,7 @@ local Scope = require(".core-scope")
 local Context = require(".core-context")
 local Actions = require(".actions")
 local GitActions = require(".git-actions")
+local FileActions = require(".file-actions")
 local VcsInfo = require(".core-vcs-info")
 local Fetcher = require(".core-fetcher")
 local Preview = require(".core-preview")
@@ -126,7 +127,12 @@ end
 function M:entry(job)
 	local action = job.args[1]
 	if action == "status" then return M.refresh_status() end
-	if action == "push" or action == "branch" or action == "switch" then return GitActions.entry(action, job.args) end
+	if action == "rename" or action == "move-other-pane" then
+		return FileActions.entry(action, job.args)
+	end
+	if action == "push" or action == "branch" or action == "switch" then
+		return GitActions.entry(action, job.args)
+	end
 	return Actions.entry(action, job.args)
 end
 

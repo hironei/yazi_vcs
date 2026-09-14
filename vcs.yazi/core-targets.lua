@@ -20,6 +20,93 @@ function M.choose(selected, cwd)
 	return {}, nil, false
 end
 
+--- Select file-operation sources: explicit selections first, then hover.
+--- Unlike shared VCS scopes, these actions never fall back to cwd.
+---@param selected table[]|nil
+---@param hovered table|nil
+---@return table[] sources
+---@return "selected"|"hovered"|nil source
+function M.choose_file_sources(selected, hovered)
+	if selected and #selected > 0 then return selected, "selected" end
+	if hovered then return { hovered }, "hovered" end
+	return {}, nil
+end
+
+--- Require exactly one item for a rename; never discard an explicit selection.
+---@param sources table[]
+---@return table? source
+---@return string? reason
+function M.single_file_source(sources)
+	if not sources or #sources == 0 then return nil, "no-target" end
+	if #sources ~= 1 then return nil, "multiple" end
+	return sources[1], nil
+end
+
+--- Validate one user-supplied basename.
+---@param name string
+---@return boolean valid
+---@return string? reason
+function M.validate_basename(name)
+	name = tostring(name or "")
+	if name == "" then return false, "name is empty" end
+	if name == "." or name == ".." then return false, "dot path components are not allowed" end
+	if name:find("[/\\%z\r\n]") then return false, "enter one filename without path separators or line breaks" end
+	return true, nil
+end
+
+function M.rename_path(source, new_name)
+	local valid, reason = M.validate_basename(new_name)
+	if not valid then return nil, reason end
+	local parent = tostring(source):match("^(.*)/[^/]+$")
+	return parent and parent ~= "" and (parent .. "/" .. new_name) or new_name, nil
+end
+
+--- Plan a VCS move and preflight repository boundaries and target collisions.
+--- `exists` is injected so the policy can be exercised without Yazi's fs API.
+---@param root string
+---@param sources table[] { path:string, is_dir:boolean }
+---@param destination_dir string absolute directory path
+---@param exists fun(path:string):boolean
+---@param windows boolean?
+---@return table? plan { paths:string[], destination:string, targets:string[] }
+---@return table? reason
+function M.plan_move(root, sources, destination_dir, exists, windows)
+	if not sources or #sources == 0 then return nil, { code = "no-target" } end
+	local destination_relative = Path.strip_prefix(root, destination_dir)
+	if destination_relative == nil then return nil, { code = "outside", path = destination_dir } end
+	if destination_relative == "" then destination_relative = "." end
+
+	local relative, targets = {}, {}
+	for _, source in ipairs(sources) do
+		local source_relative = Path.strip_prefix(root, source.path)
+		if source_relative == nil or source_relative == "" then
+			return nil, { code = "outside", path = source.path }
+		end
+		local basename = Path.basename(source_relative)
+		if not basename then return nil, { code = "invalid", path = source.path } end
+		if source.is_dir and Path.is_within(source.path, destination_dir) then
+			return nil, { code = "inside-source", path = source.path }
+		end
+		local target = Path.join_native(destination_dir, basename, windows == true)
+		local target_exists = false
+		if exists then
+			local ok, result, detail = pcall(exists, target)
+			if not ok then return nil, { code = "inspect-error", path = target, detail = result } end
+			if result == nil then return nil, { code = "inspect-error", path = target, detail = detail } end
+			target_exists = result == true
+		end
+		if Path.same(source.path, target) or target_exists then
+			return nil, { code = "collision", path = target }
+		end
+		for _, previous in ipairs(targets) do
+			if Path.same(previous, target) then return nil, { code = "duplicate", path = target } end
+		end
+		relative[#relative + 1] = source_relative
+		targets[#targets + 1] = target
+	end
+	return { paths = relative, destination = destination_relative, targets = targets }, nil
+end
+
 --- Resolve one operation's path and repository scope from a context snapshot.
 --- `detect` receives the directory from which VCS root discovery should start.
 ---@param selected string[]|nil

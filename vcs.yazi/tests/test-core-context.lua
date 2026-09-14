@@ -20,6 +20,28 @@ return function(t)
 	t.eq(context.resolve_url({ url = search_url }), "/repo/search.txt", "resolve_url unwraps a Search URL to its physical path")
 	t.truthy(context.is_search(search_url), "is_search recognizes a Search URL")
 	t.falsy(context.is_search("/repo/search.txt"), "is_search rejects a regular path")
+	t.eq(context.other_tab_index(2, 1), 2, "first tab maps to the second pane")
+	t.eq(context.other_tab_index(2, 2), 1, "second tab maps to the first pane")
+	t.eq(context.other_tab_index(1, 1), nil, "single-tab layout has no other pane")
+	t.eq(context.other_tab_index(3, 2), nil, "more than two tabs are rejected")
+
+	do
+		local snapshot = context.build_file_operation_context(
+			{ { url = "/repo/selected [1].txt", cha = { is_dir = false } } },
+			{ url = "/repo/hovered", cha = { is_dir = true } },
+			{ path = "/repo", spec = { is_search = false } },
+			{
+				{ current = { cwd = "/repo/active" } },
+				{ current = { cwd = "/repo/other" } },
+			},
+			1
+		)
+		t.deep_eq(snapshot.selected, { { path = "/repo/selected [1].txt", is_dir = false, search = false } }, "file operation snapshot preserves selected file metadata")
+		t.deep_eq(snapshot.hovered, { path = "/repo/hovered", is_dir = true, search = false }, "file operation snapshot preserves hovered directory metadata")
+		t.eq(snapshot.active_cwd, "/repo", "file operation snapshot captures active cwd")
+		t.eq(snapshot.other_cwd, "/repo/other", "file operation snapshot captures paired pane cwd")
+		t.eq(snapshot.other_index, 2, "file operation snapshot uses the opposite tab")
+	end
 
 	do
 		-- Multiple selection, File-shaped (26.8.15).

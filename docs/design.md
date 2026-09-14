@@ -318,3 +318,97 @@ commit template contains the status heading and selected path, and confirms
 that a staged path outside the selection remains staged. Live Yazi terminal,
 Git editor, and SVN editor acceptance remain environment-dependent manual
 checks.
+
+## Issue #56 Design: VCS-Aware Rename and Split-Tabs Move
+
+Add the shared `rename` and `move-other-pane` actions to `file-actions.lua` and
+dispatch them through `main.lua`. They support both detected Git and SVN
+working copies. Keep key bindings opt-in: `g v R` selects rename and `m v m`
+selects move-to-other-pane, with no new public setting, configuration schema,
+or automatic keymap edit.
+
+Capture the Yazi context once at action start in `core-context.lua`, including
+the explicit selection, hovered item, active pane index, and tab snapshot.
+Normalize `File`/`Url` values through the existing adapter. A focused
+`core-targets.lua` helper applies the feature-specific source rule without
+changing other actions: rename accepts exactly one selected item or, only when
+there are none, the hovered item; move accepts all selected items or the
+hovered item when the selection is empty. Files and directories are retained.
+No source, multiple rename sources, or invalid metadata returns a bounded
+action error before command execution.
+
+For pane resolution, use only the captured public `cx.tabs` list and
+`cx.tabs.idx`: require exactly two tabs, then resolve the tab other than the
+active one. Do not read or mutate split-tabs' private `dp.tabs` state, and do
+not assume a left/right ordering. Resolve the active directory, each source,
+and the opposite tab's current directory through the existing detector and
+path helpers; reject the action unless they all belong to the same VCS kind
+and root. Git requires one working-tree root; SVN requires one working-copy
+root. The destination directory must exist. Before running a backend command,
+compute every target basename, reject existing targets and duplicate target
+names, and reject a destination equal to or below any source directory. For
+rename, validate one basename and join it to the source's existing parent.
+
+Keep source validation and backend command construction in pure
+`core-targets.lua`, `core-path.lua`, `core-git.lua`, and `core-commands.lua`
+helpers. Git uses one argument vector rooted at the Git working-tree root:
+
+```text
+git --literal-pathspecs mv -- <source> [<source> ...] <destination>
+```
+
+The Git rename destination is the new same-parent path; for a pane move, the
+destination is the other pane directory. Git paths are root-relative literal
+arguments, preserving pathspec metacharacters, and no shell command string or
+force option is used.
+
+SVN uses only root-relative local working-copy paths, never URLs, with the
+common working-copy root as `cwd`. Rename passes the exact new target path. A
+pane move passes the existing other-pane directory for either one or multiple
+sources; SVN places each source beneath that directory:
+
+```text
+svn move -- <source> <exact-target>
+svn move -- <source> [<source> ...] <existing-destination-directory>
+```
+
+Pass every path as a separate local filesystem argv value after `--`, and
+append an empty peg separator `@` to source paths containing `@` so the final
+at-sign cannot be parsed as a peg revision (including a source ending in `@`).
+Keep the destination path exact because it is only the local output path.
+WC-to-WC
+`svn move` schedules a local addition with history and deletion for a later
+commit; it does not commit or issue a URL-to-URL move. Do not add `--force`,
+`--parents`, `--revision`, `--allow-mixed-revisions`, or any other
+mixed-revision override. Leave mixed-revision and unsupported move errors to
+the normal SVN error path; never retry with weaker constraints.
+
+The rename prompt receives the existing basename through `ya.input`'s `value`
+field. Cancel or empty input returns without invoking a command. Invoke either
+backend through the existing asynchronous `core-runner.lua` path while holding
+the existing per-root action lock. Protect execution and cleanup so the lock is
+released on success, nonzero exit, timeout, spawn failure, or Lua error. Once a
+backend command is attempted, clear cached root status and request file-list
+refresh for the rename's affected pane or both pane directories for a move,
+plus the existing VCS fetcher refresh on every result and exception path. This
+includes command errors because a multi-source move may have partially changed
+the working copy. Notify success only after a zero exit; otherwise report the
+bounded error and leave any partial result visible without automatic rollback.
+Preflight rejection and prompt cancellation do not run a command.
+
+Tests extend the pure command/target suites for source selection, rename
+cardinality and basename validation, exact-two-tab resolution, same-root
+checks, collisions, inside-source rejection, Git literal pathspec arguments,
+and SVN's destination-directory argument form. Git integration tests
+use a temporary working tree to verify file and directory rename/move behavior
+and paths with spaces, Japanese text, leading dashes, and pathspec
+metacharacters. SVN integration tests use a local repository and working copy
+to verify scheduled WC-to-WC changes without a commit, local status changes,
+exact rename targets, one- and multi-source moves into the existing destination
+directory, peg-revision escaping, and special path handling. SVN command and
+action tests also verify Unicode argv preservation. Action tests cover
+cancellation and lock release, cache invalidation, and pane/status
+refresh after success and simulated command failure, including partial moves.
+Existing regression tests remain required. Actual Yazi bindings and the
+split-tabs Other-pane destination are verified in a separate manual UI check;
+automated tests do not claim that live acceptance.

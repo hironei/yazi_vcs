@@ -346,6 +346,41 @@ SVN working copyでは、次の操作は利用できません。Gitリポジト�
 
 `plugin vcs -- branch`のようにsubactionを省略すると、Branch操作の入力を表示します。Branch作成・名称変更・切替では入力値を検証します。現在のBranch、remote Branch、force deleteはこの操作から削除できません。Pushでもforce optionは使用せず、upstream未設定時は`origin`を優先して`--set-upstream`を付けます。remoteが複数ある場合は選択入力を表示します。
 
+## VCS-Aware File Rename and Other-Pane Move (Issue #56)
+
+These opt-in bindings use the native Git or SVN move command. Add them to
+`<YAZI_CONFIG_HOME>/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "R" ]
+run = "plugin vcs -- rename"
+desc = "Rename a version-controlled path"
+
+[[mgr.prepend_keymap]]
+on = [ "m", "v", "m" ]
+run = "plugin vcs -- move-other-pane"
+desc = "Move items to the other VCS pane"
+```
+
+`g v R` renames one selected file or directory, or the hovered item when
+nothing is selected. Enter only the new basename; the item stays in its
+current parent directory. If multiple items are selected, the action reports
+an error and does not fall back to the hovered item.
+
+Use `m v m` while the two-tab layout from
+[`terrakok/split-tabs.yazi`](https://github.com/terrakok/split-tabs.yazi) is
+active. It moves every selected file or directory to the other pane's current
+directory, or moves the hovered item when there is no selection. Git uses
+`git mv`; SVN uses a local working-copy `svn move`. Each action requires all
+source paths and the destination to belong to the same Git working tree or SVN
+working copy. Existing targets and a destination inside a source directory are
+rejected. Paths are passed as literal arguments, including names with spaces,
+Japanese characters, leading dashes, and special characters. SVN source paths
+that could look like peg revisions are escaped; SVN actions do not change
+repository URLs. These bindings do not change Yazi's built-in rename or move
+actions.
+
 ## 状態記号
 
 | 記号 | 状態 |

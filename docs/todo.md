@@ -65,3 +65,7 @@
 - [x] SVNの`external`／`obstructed`／`incomplete`状態を実作業コピーで再現する
 - [x] SVN update／commit／revertのWindows実CLI確認
 - [ ] 外部GUIの実起動と終了待ちなし動作
+
+## Pending visual validation (Issue #56)
+
+- [ ] In Windows Yazi with `terrakok/split-tabs.yazi`, verify `g v R` rename and cancellation, selected and hovered sources, `m v m` moves to the opposite pane for Git and SVN, both listings refresh, and backend failures are reported.

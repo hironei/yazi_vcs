@@ -45,8 +45,10 @@ local function refresh(root, message)
 	Notify.info("%s", message)
 end
 
-local function ask(title)
-	local value, event = ya.input({ title = title, pos = { "center", w = 60 } })
+local function ask(title, initial_value)
+	local options = { title = title, pos = { "center", w = 60 } }
+	if initial_value ~= nil then options.value = initial_value end
+	local value, event = ya.input(options)
 	if event ~= 1 then return nil end
 	return value
 end

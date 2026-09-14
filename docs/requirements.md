@@ -2004,3 +2004,96 @@ Acceptance criteria:
 5. Tab switches to standard Spot for the same item and removes the temporary
    registrations; standard Spot Tab still closes normally.
 6. Esc, C-[, and C-c close VCS Spot and remove temporary registrations.
+
+## Issue #56 Addendum: Git/SVN-Aware Rename and Split-Tabs Move
+
+The opt-in manager binding `g v R` invokes a rename action for the VCS detected
+from the item and active pane. At invocation, it uses the single explicitly
+selected filesystem item; if there is no selection, it uses the hovered item.
+Multiple selected items are an error and must not fall back to the hovered
+item. Files and directories are eligible. The action prompts for a new
+basename and renames the item in its existing parent. The input must be one
+basename (not `.`, `..`, a path, or an absolute path), and an existing
+destination is rejected. Empty input or prompt cancellation leaves the working
+copy unchanged.
+
+For Git, rename uses `git mv`; a successful operation updates the working tree
+and Git index without creating a commit. For SVN, rename uses a working-copy to
+working-copy `svn move` with local paths only. SVN schedules the move as an
+addition with history and a deletion for a later commit; this action does not
+commit or mutate a repository URL.
+
+The opt-in manager binding `m v m` moves items into the other pane of the
+two-tab `split-tabs.yazi` layout. It uses all explicitly selected filesystem
+items, or the hovered item only when nothing is selected; files and directories
+are eligible. Resolve the active pane from `cx.tabs.idx` and the other pane
+from the pair supplied by split-tabs; do not infer a left/right ordering. The
+other pane's current directory is the destination, and each item's basename is
+preserved. Refuse the operation unless exactly two pane tabs are available,
+the destination is an existing directory, and the active pane, destination,
+and every source resolve to the same VCS kind and root: one Git working-tree
+root or one SVN working-copy root. Git/SVN mixtures and cross-root moves are
+rejected. Reject destination name collisions and a destination inside a source
+directory before invoking the VCS command.
+
+Git commands run from the resolved Git root with root-relative literal source
+paths passed as separate arguments: `git --literal-pathspecs mv -- <source>
+[<source> ...] <destination>`. Git must not interpret pathspec metacharacters
+as patterns. SVN commands run from the common working-copy root using
+root-relative local working-copy paths as separate arguments after `--`; never
+construct repository URLs. For rename, pass the exact new target path. For a
+pane move, pass the existing destination directory for either one or multiple
+sources; SVN adds each source as a child of that directory. Escape SVN
+peg-revision syntax in source arguments containing `@` by appending an empty
+peg separator `@` (including a source ending in `@`) so it remains literal.
+Preserve the destination argument exactly because it is a local output path.
+`svn move` WC-to-WC schedules an addition with history and a
+deletion for a later commit; it does not commit. URL-to-URL moves and
+cross-working-copy moves are out of scope. Do not pass `--force`, `--parents`,
+`--revision`, or any mixed-revision override; in particular, never add
+`--allow-mixed-revisions`. If SVN rejects a mixed-revision or otherwise
+unsupported move, surface the normal error.
+
+Neither backend may construct shell command strings or force-overwrite targets.
+A cancelled rename does nothing; move performs no prompt and invalid pane or
+repository context causes no command to run. Invalid context, unsafe paths,
+command errors, and missing split-tabs pane context produce a bounded
+notification. After a command attempt, refresh the relevant file listings and
+VCS status even on errors. For move, refresh both panes because a multi-source
+Git or SVN operation may have partially changed the working copy; report the
+error and do not attempt an automatic rollback. The actions are opt-in key
+bindings and must not rewrite user configuration.
+
+Acceptance criteria:
+
+1. `g v R` renames exactly one selected item, or the hovered item when there is
+   no selection; multiple selections are rejected. Git uses `git mv` in the
+   same parent, and SVN uses a local WC-to-WC `svn move` in the same parent.
+   Files and directories are supported, and cancellation changes nothing.
+2. `m v m` sends selected items, or the hovered item when there is no selection,
+   to the current directory of the other pane in a two-tab split-tabs layout,
+   preserving each basename and supporting files and directories. Both panes,
+   every source, and all destinations remain within one Git root or one SVN
+   working-copy root.
+3. Git arguments use `git --literal-pathspecs mv --` so pathspec metacharacters
+   are literal; SVN arguments use `svn move --` and local working-copy paths
+   only, with an empty peg separator where needed. Both preserve spaces,
+   Japanese characters, leading-dash names, and other special characters as
+   separate argv values. Neither command uses a shell, overwrite option,
+   repository URL, `--force`, `--parents`, or a mixed-revision override.
+4. Existing targets, duplicate destination basenames, unsafe rename basenames,
+   and moves into or below a source directory are rejected before command
+   execution. SVN URL moves, cross-working-copy moves, and mixed VCS/root
+   contexts are rejected.
+5. SVN integration tests verify WC-to-WC scheduling without a commit, local
+   status changes, exact rename targets, one- and multi-source moves into the
+   existing destination directory, and paths containing spaces, leading-dash
+   names, special characters, and peg-revision suffixes. SVN command/action
+   tests also verify Unicode argv preservation. Git
+   integration tests preserve the same path coverage and verify that
+   rename/move updates the index and working tree. Unit/action tests cover
+   source selection and fallback, cancellation, pane pairing and target
+   resolution, root/collision/descendant guards, exact argument construction,
+   and refresh/lock cleanup after success and errors, including partial moves.
+   Existing tests remain green. Manual validation in Yazi with split-tabs is
+   recorded separately from automated tests.
