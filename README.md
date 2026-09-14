@@ -101,9 +101,25 @@ require("vcs"):setup()
 
 ```toml
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "r" ]
+run = "plugin vcs -- status"
+desc = "Refresh VCS status"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "u" ]
+run = "plugin vcs -- update"
+desc = "VCS update"
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "a" ]
 run = "plugin vcs -- add"
 desc = "VCS add"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "c" ]
+run = "plugin vcs -- commit"
+desc = "VCS commit"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "x" ]
+run = "plugin vcs -- discard"
+desc = "Discard VCS changes"
 [[mgr.prepend_keymap]]
 on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
@@ -129,13 +145,25 @@ on = [ "g", "v", "s" ]
 run = "plugin vcs -- log-spot"
 desc = "Show VCS log in Spot"
 [[mgr.prepend_keymap]]
-on = [ "g", "v", "u" ]
+on = [ "g", "v", "y" ]
 run = "plugin vcs -- copy-url"
 desc = "Copy VCS URL"
 [[mgr.prepend_keymap]]
-on = [ "g", "v", "U" ]
+on = [ "g", "v", "Y" ]
 run = "plugin vcs -- copy-url-revision"
 desc = "Copy VCS URL with revision"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "p" ]
+run = "plugin vcs -- push"
+desc = "Git push"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "b" ]
+run = "plugin vcs -- branch"
+desc = "Git branch actions"
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "w" ]
+run = "plugin vcs -- switch"
+desc = "Git switch"
 [[mgr.prepend_keymap]]
 on = [ "g", "v", "R" ]
 run = "plugin vcs -- rename"
@@ -145,6 +173,19 @@ on = [ "m", "v", "m" ]
 run = "plugin vcs -- move-other-pane"
 desc = "Move items to the other VCS pane"
 ```
+
+The examples above use `[[mgr.prepend_keymap]]`; set `on` to an unused key
+sequence and `run` to the exact `plugin vcs -- ...` action. This covers status,
+update, changes, add, commit, discard, CLI and external Diff/Log, log preview,
+log Spot, URL copy, Git push/branch/switch, rename, and other-pane move. The
+`changes` binding is shown in the [VCS Changes View](#vcs-changes-view) section.
+`plugin vcs -- branch` opens a prompt for `list`, `create`, `create-switch`,
+`rename`, or `delete`; bind an individual action by adding it after `branch`,
+for example `run = "plugin vcs -- branch list"`.
+
+In Spot, add `[[spot.prepend_keymap]]` entries instead. The VCS Log Spot example
+below includes every Spot action: switch to the standard Spot, close Spot,
+move the selected log row, and copy its revision or message.
 
 `g v R` renames one selected item, or the hovered item when nothing is
 selected, in its current parent directory. `m v m` moves selected items (or

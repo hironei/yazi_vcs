@@ -198,12 +198,26 @@ run = "plugin vcs -- branch"
 desc = "Git branch"
 
 [[mgr.prepend_keymap]]
-on = [ "g", "v", "s" ]
+on = [ "g", "v", "w" ]
 run = "plugin vcs -- switch"
 desc = "Git switch"
+
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "y" ]
+run = "plugin vcs -- copy-url"
+desc = "Copy VCS URL"
+
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "Y" ]
+run = "plugin vcs -- copy-url-revision"
+desc = "Copy VCS URL with revision"
 ```
 
 キー列は任意に変更できます。既存のキー割り当てと衝突する場合は、`on`の値を変更してください。
+
+`plugin vcs -- branch` opens the Git branch action prompt for `list`, `create`,
+`create-switch`, `rename`, and `delete`. To bind a single subaction directly,
+use its name in `run`, for example `run = "plugin vcs -- branch list"`.
 
 ## 対応コマンド一覧
 
