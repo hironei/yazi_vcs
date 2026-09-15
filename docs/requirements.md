@@ -106,6 +106,7 @@ Git固有機能については、共通操作とは分離した形で提供す�
 - Diff
 - Log
 - ローカル変更の破棄
+- VCS管理下のファイル／ディレクトリ削除
 - 複数ファイル選択への操作
 - 外部コマンド呼び出し
 - 実行結果通知
@@ -317,7 +318,7 @@ VCS操作は、操作の危険性によらず次の共通ルールで対象を�
 
 ### 7.1 Repository Context Resolution
 
-Path-level operation（Add、Commit、Diff、Log、Discard、Copy URL）はscopeのpathをroot-relativeへ変換する。selected pathがfileならparent、directoryなら自身をVCS detectorの開始点とする。selectedなしではcwdを開始点とする。
+Path-level operation（Add、Commit、Diff、Log、Discard、Delete、Copy URL）はscopeのpathをroot-relativeへ変換する。selected pathがfileならparent、directoryなら自身をVCS detectorの開始点とする。selectedなしではcwdを開始点とする。Deleteだけはfile-operation semanticsとしてselectedがなければhovered itemを使い、cwd全体へフォールバックしない。
 
 Repository-level operation（Update、Git Push、Git Branch、Git Switch、Status refresh）はpathをCLI targetにせず、同じscopeから所属repository rootを解決してrootを作業ディレクトリとする。cwdがVCS外でも、repository内のdirectory/fileをselectedすればそのrepository contextを使用できる。
 
@@ -335,7 +336,7 @@ Target ResolutionとRisk Policyは分離する。
 
 - Level 0（Read-only）: Diff、Log、Copy URL、Copy URL + revision、Status refresh、Branch list。追加確認不要。
 - Level 1（Mutating）: Add、Update、Push、Switch、Branch create/rename。既存の安全機構を維持する。Addはselected scopeなら確認不要、cwd scopeなら配下を広く追加し得るため対象ディレクトリを表示して`add`のtyped confirmationを要求する。
-- Level 2（Destructive/Broad Mutation）: Commit、Discard、Branch delete。対象範囲を明示し、必ずtyped confirmationを要求する。Commit／Discardのcwd scopeでは、現在のディレクトリ配下を対象とすることと、広範囲／不可逆になり得ることを確認文へ含める。
+- Level 2（Destructive/Broad Mutation）: Commit、Discard、Delete、Branch delete。対象範囲を明示し、必ずtyped confirmationを要求する。Commit／Discardのcwd scopeでは、現在のディレクトリ配下を対象とすることと、広範囲／不可逆になり得ることを確認文へ含める。Deleteはcwd全体へフォールバックせず、selectedまたはhovered itemだけを対象とする。
 
 ### 7.3 Yaziバージョン間のselected表現差異（新設、Issue #38）
 
@@ -2097,3 +2098,39 @@ Acceptance criteria:
    and refresh/lock cleanup after success and errors, including partial moves.
    Existing tests remain green. Manual validation in Yazi with split-tabs is
    recorded separately from automated tests.
+
+## Issue #58 Addendum: VCS-Aware File and Directory Delete
+
+The manager action `plugin vcs -- delete` schedules deletion of selected files
+or directories in the current Git repository or SVN working copy. When there
+is no selection, it uses the hovered item; it never falls back to deleting the
+current directory itself. Search View, a missing item, the VCS root, mixed
+repositories, and paths outside the active working copy are rejected before a
+destructive command runs.
+
+Delete is a Level 2 destructive operation. The confirmation displays every
+kept root-relative target and requires the exact text `delete`. Cancellation
+does not run a command. Targets whose cached status is `untracked`, `ignored`,
+or `excluded` are excluded and reported; the action never uses a force option
+or removes untracked files as a side effect. Backend failures still clear the
+root cache and request a file refresh after the command attempt.
+
+Git runs `git --literal-pathspecs rm -r -- <targets...>` from the repository
+root. SVN runs `svn delete -- <targets...>` from the working-copy root and
+appends an empty peg separator to local paths containing `@`. All paths are
+separate command arguments; shell command construction, force deletion, and
+repository URL operations are out of scope.
+
+Acceptance criteria:
+
+1. Selected file and directory targets are deleted by Git and SVN, and the
+   hovered item is used when no item is selected.
+2. Confirmation, cancellation, root rejection, mixed-root rejection, and
+   untracked/ignored exclusion are covered by action tests.
+3. Command builders preserve spaces, Unicode, leading dashes, metacharacters,
+   and SVN peg-revision-looking names as literal arguments.
+4. Git integration coverage verifies `git rm -r` removes files and directories
+   from the working tree and index; SVN coverage verifies scheduled deletion
+   and status output without committing.
+5. Existing tests and prescribed syntax checks remain green. Live Yazi UI
+   confirmation is recorded separately from automated evidence.

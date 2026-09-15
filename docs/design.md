@@ -7,6 +7,7 @@
 - `main.lua`: fetcher（`core-fetcher.lua`への委譲を含む）、状態表示、status bar情報、status refresh、操作dispatch
 - `core-fetcher.lua`: **【新設、Issue #38】** Yazi `UnstableFetcher`契約（`ya.co()`／`coroutine.yield(file, {retry=..., error=...})`）のみを集約するアダプタ。`main.lua`やbackendへYazi固有のfetcher result形式を漏らさない（§3参照）
 - `actions.lua`: Update／Commit／CLI Diff／CLI Log／Discard、外部操作
+- `file-actions.lua`: VCS-aware file/directory Delete、Rename、other-pane Move
 - `git-actions.lua`: Push、Branch、Switch
 - `backend-git.lua` / `backend-svn.lua`: CLI仕様、status/info/revision出力解析
 - `core-commands.lua` / `core-git.lua`: 引数構築とGit固有の純粋ロジック
@@ -37,7 +38,7 @@ Context Snapshot (selected / cwd / file metadata)
 
 Actions、Git actions、Status refreshは同じresolverを使用する。Fetcherの通常status取得とstatus bar／linemodeのhover表示はこの操作scopeとは独立し、従来どおり表示中のファイルやhoverを使用できる。
 
-未selectedのAddはcwd配下への広範囲追加となり得るため`add`確認を行う。CommitとDiscardはselected有無にかかわらずtyped confirmationを行い、cwd scopeでは絶対パスと広範囲／不可逆性を確認文へ表示する。
+未selectedのAddはcwd配下への広範囲追加となり得るため`add`確認を行う。CommitとDiscardはselected有無にかかわらずtyped confirmationを行い、cwd scopeでは絶対パスと広範囲／不可逆性を確認文へ表示する。File-actionsのDeleteはselected > hoveredで解決し、cwdへフォールバックしない。
 
 ## 3. Fetcherと状態フロー
 
@@ -412,3 +413,32 @@ refresh after success and simulated command failure, including partial moves.
 Existing regression tests remain required. Actual Yazi bindings and the
 split-tabs Other-pane destination are verified in a separate manual UI check;
 automated tests do not claim that live acceptance.
+
+## Issue #58 Design: VCS-Aware File and Directory Delete
+
+`main.lua` routes the new `delete` action through `file-actions.lua`, alongside
+rename and other-pane move. `file-actions.lua` captures the existing immutable
+file-operation snapshot, resolves selected sources with hovered fallback, and
+reuses the active-pane/same-root preflight. It rejects Search View, missing
+sources, the VCS root, cross-root selections, and non-VCS paths before acquiring
+the per-root lock or invoking a command.
+
+The action converts each source to a root-relative path, removes cached
+untracked/ignored/excluded entries through `core-targets.lua`, and renders the
+remaining paths in a typed confirmation prompt. `core-commands.lua` builds
+Git's `--literal-pathspecs rm -r --` argv and SVN's `delete --` argv. SVN local
+paths containing `@` receive the same empty peg separator used by `svn move`.
+No shell string, force option, repository URL, or automatic untracked-file
+deletion is introduced.
+
+After a command attempt, the action clears the root state and emits the normal
+file refresh even when the backend returns a nonzero status or the runner
+raises an error. The existing lock wrapper releases the root lock on every
+return path. Successful operations report the backend and refresh result;
+preflight failures and prompt cancellation do not invoke a VCS command.
+
+The command builders, target filtering, action routing, confirmation and
+refresh behavior are covered by unit/action tests. Git and SVN integration
+tests cover file and directory scheduling/removal, literal path arguments,
+and special names. Live Yazi confirmation and native SVN/Git installation
+behavior remain separate manual acceptance boundaries.

@@ -9,6 +9,7 @@ return function(t)
 	local old_actions = package.loaded["file-actions"]
 	local context
 	local notifications, emitted, cleared, runner_calls = {}, {}, {}, {}
+	local status_map = {}
 	local input_value, input_event = "new name.txt", 1
 	local runner_side_effect
 	local runner_throw
@@ -41,6 +42,7 @@ return function(t)
 		end,
 		end_action = function() locked = false; lock_ends = lock_ends + 1 end,
 		clear_root = function(root) cleared[#cleared + 1] = root end,
+		status_of = function(_, path) return status_map[path] end,
 	}
 	local Runner = {
 		run = function(spec)
@@ -86,6 +88,7 @@ return function(t)
 		runner_throw = nil
 		runner_output = { status = { success = true, code = 0 }, stdout = "", stderr = "" }
 		input_value, input_event = "new name.txt", 1
+		status_map = {}
 	end
 	local function source(path, is_dir)
 		return { path = path, is_dir = is_dir == true, search = false }
@@ -131,6 +134,101 @@ return function(t)
 		args = { "move", "--", "source/old [ab].txt", "source/new name.txt" },
 	}, "SVN rename uses svn move with a working-copy-relative destination")
 	assert_refreshed("successful SVN rename", "/svn")
+
+	reset()
+	local delete_file = source("/repo/src/delete me.txt", false)
+	local delete_dir = source("/repo/src/folder", true)
+	context = operation_context({ delete_file, delete_dir }, source("/repo/src/hovered.txt", false))
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ delete_file, delete_dir })
+	input_value = "delete"
+	actions.delete()
+	t.deep_eq(runner_calls[1], {
+		command = "git", cwd = "/repo",
+		args = { "--literal-pathspecs", "rm", "-r", "--", "src/delete me.txt", "src/folder" },
+	}, "Git delete uses selected file and directory paths")
+	assert_refreshed("successful Git delete")
+
+	reset()
+	local svn_delete_source = source("/svn/source/name@123.txt", false)
+	context = operation_context({}, svn_delete_source)
+	context.active_cwd = "/svn/source"
+	filesystem["/svn/source"] = { is_dir = true }
+	add_source_files({ svn_delete_source })
+	input_value = "delete"
+	actions.delete()
+	t.deep_eq(runner_calls[1], {
+		command = "svn", cwd = "/svn",
+		args = { "delete", "--", "source/name@123.txt@" },
+	}, "SVN delete preserves a literal @ path")
+	assert_refreshed("successful SVN delete", "/svn")
+
+	reset()
+	context = operation_context({ delete_file })
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ delete_file })
+	input_event = 0
+	actions.delete()
+	t.eq(#runner_calls, 0, "cancelled delete does not invoke Git")
+	t.eq(#emitted, 0, "cancelled delete does not refresh or mutate state")
+	t.falsy(locked, "cancelled delete releases the operation lock")
+
+	reset()
+	local untracked = source("/repo/src/new.txt", false)
+	context = operation_context({ untracked })
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ untracked })
+	status_map["src/new.txt"] = "untracked"
+	actions.delete()
+	t.eq(#runner_calls, 0, "untracked delete target is excluded from Git")
+	t.eq(#emitted, 0, "all-excluded delete does not refresh")
+	t.falsy(locked, "excluded delete releases the operation lock")
+
+	reset()
+	local root_source = source("/repo", true)
+	context = operation_context({ root_source })
+	filesystem["/repo"] = { is_dir = true }
+	add_source_files({ root_source })
+	actions.delete()
+	t.eq(#runner_calls, 0, "delete refuses the VCS working-copy root")
+	t.eq(#emitted, 0, "root delete rejection does not refresh")
+	t.falsy(locked, "root delete rejection releases the operation lock")
+
+	reset()
+	context = operation_context({ delete_file })
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ delete_file })
+	input_value = "delete"
+	runner_output = { status = { success = false, code = 1 }, stdout = "", stderr = "simulated git delete failure" }
+	actions.delete()
+	t.eq(#runner_calls, 1, "failed delete reaches Git")
+	assert_refreshed("failed Git delete")
+	t.eq(notifications[#notifications].message, "Git delete failed: simulated git delete failure", "failed delete reports the Git error")
+
+	reset()
+	context = operation_context({ delete_file })
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ delete_file })
+	input_value = "delete"
+	runner_throw = "simulated git delete runner exception"
+	actions.delete()
+	assert_refreshed("delete after runner exception")
+	t.eq(notifications[#notifications].message, "Git delete failed: simulated git delete runner exception", "delete runner exception is reported")
+
+	reset()
+	local ignored = source("/repo/src/ignored.txt", false)
+	local excluded = source("/repo/src/excluded-dir", true)
+	context = operation_context({ ignored, excluded })
+	filesystem["/repo/src"] = { is_dir = true }
+	add_source_files({ ignored, excluded })
+	status_map["src/ignored.txt"] = "ignored"
+	status_map["src/excluded-dir"] = "excluded"
+	actions.delete()
+	t.eq(#runner_calls, 0, "ignored and excluded delete targets are excluded from Git")
+	t.eq(#emitted, 0, "all ignored/excluded delete targets do not refresh")
+	t.truthy(notifications[#notifications].message:match("ignored.txt"), "ignored delete target is reported")
+	t.truthy(notifications[#notifications].message:match("excluded%-dir"), "excluded delete target is reported")
+	t.falsy(locked, "ignored/excluded delete releases the operation lock")
 
 	reset()
 	context = operation_context({ rename_source })

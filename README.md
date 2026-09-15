@@ -121,6 +121,10 @@ on = [ "g", "v", "x" ]
 run = "plugin vcs -- discard"
 desc = "Discard VCS changes"
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "X" ]
+run = "plugin vcs -- delete"
+desc = "Delete VCS paths"
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
@@ -176,7 +180,7 @@ desc = "Move items to the other VCS pane"
 
 The examples above use `[[mgr.prepend_keymap]]`; set `on` to an unused key
 sequence and `run` to the exact `plugin vcs -- ...` action. This covers status,
-update, changes, add, commit, discard, CLI and external Diff/Log, log preview,
+update, changes, add, commit, discard, delete, CLI and external Diff/Log, log preview,
 log Spot, URL copy, Git push/branch/switch, rename, and other-pane move. The
 `changes` binding is shown in the [VCS Changes View](#vcs-changes-view) section.
 `plugin vcs -- branch` opens a prompt for `list`, `create`, `create-switch`,
@@ -194,6 +198,13 @@ the active two-tab layout from [`terrakok/split-tabs.yazi`](https://github.com/t
 Both actions use `git mv` in a Git working tree or local working-copy
 `svn move` in an SVN working copy. All paths must belong to the same VCS root;
 SVN operations stay local and do not mutate repository URLs.
+
+`g v X` invokes `plugin vcs -- delete`. It deletes selected files or directories,
+or the hovered item when nothing is selected, from the current Git repository or
+SVN working copy after a typed `delete` confirmation. The working-copy root,
+mixed repositories, and Search View are rejected. Untracked and ignored items
+are excluded and are never removed automatically. Git uses literal recursive
+`git rm -r`; SVN uses local `svn delete` with literal path handling.
 
 ## VCS Log Preview
 
