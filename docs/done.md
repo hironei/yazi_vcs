@@ -1,5 +1,14 @@
 # 完了記録
 
+## 2026-09-15 — VCS-aware file and directory delete (Issue #58)
+
+- Added `plugin vcs -- delete` with selected-item or hovered-item targeting for Git and SVN working copies.
+- Added typed `delete` confirmation, working-copy-root and Search View rejection, same-root validation, untracked/ignored exclusion, operation locking, error reporting, and post-command refresh.
+- Added literal Git `git rm -r` and SVN `svn delete` command builders, including SVN peg-revision escaping for local paths containing `@`.
+- Updated the root/plugin README, user manual, requirements, design, and TODO documentation.
+- Added command, action, Git integration, and SVN integration coverage. Windows Lua suite: 520 passed / 0 failed. Live Yazi confirmation remains a manual validation boundary.
+- Issue: [#58](https://github.com/hironei/yazi_vcs/issues/58)
+
 ## 2026-09-14 — VCS-aware file rename and split-tabs move (Issue #56)
 
 - Added optional `g v R` rename and `m v m` move-to-other-pane actions using root-relative `git mv` or local working-copy `svn move` arguments.

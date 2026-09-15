@@ -168,6 +168,11 @@ run = "plugin vcs -- discard"
 desc = "Discard VCS changes"
 
 [[mgr.prepend_keymap]]
+on = [ "g", "v", "X" ]
+run = "plugin vcs -- delete"
+desc = "Delete VCS paths"
+
+[[mgr.prepend_keymap]]
 on = [ "g", "v", "d" ]
 run = "plugin vcs -- diff"
 desc = "VCS diff"
@@ -234,6 +239,7 @@ use its name in `run`, for example `run = "plugin vcs -- branch list"`.
 | `plugin vcs -- diff` | `git diff -- <targets>` | `svn diff -- <targets>` | CLI Diffをpagerで表示 |
 | `plugin vcs -- log` | `git log --decorate --oneline --graph -- <targets>` | `svn log -- <targets>` | CLI Logをpagerで表示 |
 | `plugin vcs -- discard` | `git restore -- <targets>` | `svn revert [--depth=infinity] -- <targets>` | ローカル変更を破棄。selected／cwdを問わずtyped confirmationが必要 |
+| `plugin vcs -- delete` | `git --literal-pathspecs rm -r -- <targets>` | `svn delete -- <targets>` | selected、または未選択時のhovered itemを削除。typed confirmationが必要 |
 
 repository root、またはrepository rootをcwdとしているscopeのDiff／Logでは、`.`をpath filterとして渡さずリポジトリ全体を表示します。通常のselected pathやroot以外のcwdでは、そのpathだけを対象にします。
 
@@ -242,6 +248,8 @@ Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時に�
 Commitのメッセージ編集はプラグインの`editor`設定を使用せず、Git／SVNの標準editor解決を使用します。Gitは`GIT_EDITOR`、`core.editor`、`VISUAL`、`EDITOR`の順、SVNは`SVN_EDITOR`、`editor-cmd`、`VISUAL`、`EDITOR`の順で解決します。Git／SVNが生成する変更ファイル一覧やcommit templateもそのまま表示されます。
 
 Discardでは未追跡ファイル・ignoredファイルを対象外とします。通常のDiscardは`discard`、ディレクトリを再帰的に破棄する場合は、既定で`revert`という文字の入力が必要です。
+
+DeleteはVCS管理下のファイル／ディレクトリを作業コピーから削除し、Git／SVNへ削除をスケジュールします。selectedがあれば全selected、未選択ならhovered itemだけを対象とし、cwd全体へはフォールバックしません。対象範囲を表示して`delete`のtyped confirmationを要求します。VCS root、Search View、異なるrepositoryの混在、VCS外の項目、未追跡／ignored項目は拒否または除外します。Force deleteやshell文字列連結は使用しません。
 
 Addではignoredファイルを対象外とします（`git add`はignoredファイルを`-f`無しでは受け付けず、`svn add`は既定でsvn:ignore対象を無視するため）。除外があった場合は通知します。
 

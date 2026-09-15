@@ -176,8 +176,8 @@ function M.relative(absolute_paths, root)
 	return relative, nil
 end
 
---- Remove targets known to be untracked. Git restore cannot operate on these,
---- and SVN revert must never be used as an untracked-file deletion mechanism.
+--- Remove targets known to be untracked. Git restore/rm cannot operate on
+--- these safely, and SVN revert/delete must not remove them implicitly.
 ---@param relative_paths string[]
 ---@param statuses table<string,string>|nil
 ---@return string[] kept

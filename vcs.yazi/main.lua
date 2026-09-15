@@ -127,7 +127,7 @@ end
 function M:entry(job)
 	local action = job.args[1]
 	if action == "status" then return M.refresh_status() end
-	if action == "rename" or action == "move-other-pane" then
+	if action == "rename" or action == "move-other-pane" or action == "delete" then
 		return FileActions.entry(action, job.args)
 	end
 	if action == "push" or action == "branch" or action == "switch" then

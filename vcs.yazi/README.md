@@ -17,6 +17,24 @@ SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-w
 
 VCS操作の対象は、selectedがあればselected、なければcwdです。hoveredだけでは対象を変更しません。cwdがVCS外でも、VCSリポジトリのディレクトリをselectedすればそのリポジトリを操作できます。異なるリポジトリを複数selectedした操作は拒否します。未selectedのAdd／Commit／Discardはcwd配下を広く対象にし得るため、対象範囲を表示してtyped confirmationを要求します。既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。
 
+## VCS-Aware Delete (Issue #58)
+
+Add an optional manager binding such as:
+
+```toml
+[[mgr.prepend_keymap]]
+on = [ "g", "v", "X" ]
+run = "plugin vcs -- delete"
+desc = "Delete VCS paths"
+```
+
+The action deletes selected files or directories, or the hovered item when
+nothing is selected. It requires a typed `delete` confirmation, rejects the
+working-copy root, Search View, mixed repositories, and paths outside the same
+VCS root, and refreshes the listing after a command attempt. Git uses literal
+recursive `git rm -r`; SVN uses `svn delete` with literal local-path handling.
+Untracked and ignored items are excluded and are never automatically removed.
+
 ## VCS Changes View
 
 `plugin vcs -- changes` opens the resolved repository's changed files in Yazi's native Search View. It reuses the Git/SVN status parser, includes untracked files, excludes clean and ignored files, and keeps deleted paths selectable with synthetic metadata when the physical file is gone.

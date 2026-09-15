@@ -1,4 +1,4 @@
--- Git/SVN file operations: rename with native VCS move and split-tabs transfer.
+-- Git/SVN file operations: delete, rename with native VCS move, and split-tabs transfer.
 local Config = require(".config")
 local Commands = require(".core-commands")
 local Context = require(".core-context")
@@ -23,6 +23,11 @@ end
 local function move_args(kind, paths, destination)
 	if kind == "git" then return Git.move_args(paths, destination) end
 	return Commands.svn_move(paths, destination)
+end
+
+local function delete_args(kind, paths)
+	if kind == "git" then return Commands.git_delete(paths) end
+	return Commands.svn_delete(paths)
 end
 
 local function fail(kind, operation, output, err)
@@ -196,9 +201,54 @@ function M.move_other_pane()
 	end)
 end
 
+function M.delete()
+	local cfg = Config.get()
+	local context = Context.file_operation_snapshot()
+	local sources = Targets.choose_file_sources(context.selected, context.hovered)
+	if #sources == 0 then return Notify.warn("No files selected or hovered for delete.") end
+	local scope = root_for_file_operation(context, sources, nil, cfg)
+	if not scope then return end
+
+	return with_lock(scope.root, function()
+		local relative = {}
+		for _, source in ipairs(sources) do
+			if not file_source_exists(source) then
+				return Notify.error("Delete source no longer exists: %s", display_path(source.path))
+			end
+			local path = Path.strip_prefix(scope.root, source.path)
+			if not path or path == "" then
+				return Notify.error("Refusing to delete the VCS working-copy root.")
+			end
+			relative[#relative + 1] = path
+		end
+
+		local statuses = {}
+		for _, path in ipairs(relative) do statuses[path] = State.status_of(scope.root, path) end
+		local kept, excluded = Targets.exclude_untracked(relative, statuses)
+		if #excluded > 0 then
+			Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", "))
+		end
+		if #kept == 0 then return end
+
+		local body = "Delete these version-controlled paths?\n\n" .. Targets.describe(kept)
+		local value, event = ya.input({
+			title = 'Type "delete" to confirm:\n' .. body,
+			pos = { "center", w = 60 },
+		})
+		if event ~= 1 or value ~= "delete" then return Notify.info("Delete cancelled.") end
+
+		local ok, output, err = pcall(run, scope.kind, scope.root, delete_args(scope.kind, kept), cfg)
+		refresh_after_mutation(scope.root)
+		if not ok then return fail(scope.kind, "delete", nil, runner_error_message(output)) end
+		if not output or not output.status or not output.status.success then return fail(scope.kind, "delete", output, err) end
+		Notify.info("%s delete completed.", scope.kind == "svn" and "SVN" or "Git")
+	end)
+end
+
 function M.entry(action)
 	if action == "rename" then return M.rename() end
 	if action == "move-other-pane" then return M.move_other_pane() end
+	if action == "delete" then return M.delete() end
 	Notify.warn("Unknown VCS file action: %s", tostring(action))
 end
 

@@ -35,6 +35,13 @@ function M.svn_commit(paths)
 	return append_targets({ "commit" }, paths)
 end
 
+local function svn_literal_source(path)
+	path = tostring(path)
+	-- SVN parses a final @REV as a peg revision, even for local paths.
+	-- Appending @ forces an ambiguous at-sign path to remain literal.
+	return path:find("@", 1, true) and (path .. "@") or path
+end
+
 function M.git_diff(paths)
 	return append_targets({ "--no-pager", "diff" }, paths)
 end
@@ -69,17 +76,21 @@ function M.svn_add(paths)
 end
 
 function M.svn_move(paths, destination)
-	local function literal_source(path)
-		path = tostring(path)
-		-- SVN parses a final @REV as a peg revision, even for local paths.
-		-- Appending @ forces an ambiguous at-sign path to remain literal.
-		return path:find("@", 1, true) and (path .. "@") or path
-	end
 	local args = { "move", "--" }
-	for _, path in ipairs(paths or {}) do args[#args + 1] = literal_source(path) end
+	for _, path in ipairs(paths or {}) do args[#args + 1] = svn_literal_source(path) end
 	-- `DST` is a local output path, not a peg-revision source, so preserve it
 	-- exactly (including a trailing @ in the requested filename).
 	args[#args + 1] = destination
+	return args
+end
+
+function M.git_delete(paths)
+	return append_targets({ "--literal-pathspecs", "rm", "-r" }, paths)
+end
+
+function M.svn_delete(paths)
+	local args = { "delete", "--" }
+	for _, path in ipairs(paths or {}) do args[#args + 1] = svn_literal_source(path) end
 	return args
 end
 
