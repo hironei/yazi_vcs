@@ -7,6 +7,7 @@
 -- empirically reproduced.
 return function(t)
 	local svn = require("backend-svn")
+	t.deep_eq(svn.versioned_path_args("folder with spaces"), { "info", "--show-item", "kind", "--", "folder with spaces" }, "versioned path query keeps the path as one argument")
 
 	-- status_args
 	do

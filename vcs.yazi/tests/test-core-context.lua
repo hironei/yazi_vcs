@@ -105,6 +105,19 @@ return function(t)
 	end
 
 	do
+		local snapshot = context.build_file_operation_context(
+			{ { url = "/repo/selected-dir" } },
+			{ url = "/repo/selected-dir" },
+			"/repo",
+			{ { current = { cwd = "/repo/active" } } },
+			1,
+			{ { url = "/repo/selected-dir", cha = { is_dir = true } } }
+		)
+		t.truthy(snapshot.selected[1].is_dir, "file operation snapshot falls back to current-file metadata")
+		t.truthy(snapshot.hovered.is_dir, "hovered directory uses current-file metadata when cha is absent")
+	end
+
+	do
 		-- Multiple selection, File-shaped (26.8.15).
 		local snapshot = context.build_snapshot(
 			{ { url = "/repo/a.txt" }, { url = "/repo/b.txt" } },

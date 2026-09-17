@@ -96,6 +96,20 @@ return function(t)
 	end
 
 	do
+		local Command, calls = fake_command({
+			{ line = "out-1\n", stream = 0 },
+			{ line = "out-2\n", stream = 0 },
+			{ line = "err-1\n", stream = 1 },
+			2,
+		}, { success = true, code = 0 })
+		with_fake_yazi(Command, calls, function()
+			local output = runner.run({ command = "git", args = { "status" } }, 1000)
+			t.eq(output.stdout, "out-1\nout-2\n", "runner does not double Yazi line terminators")
+			t.eq(output.stderr, "err-1\n", "runner preserves stderr terminators")
+		end)
+	end
+
+	do
 		local Command, calls = fake_command({ 3 }, { success = false, code = 137 })
 		with_fake_yazi(Command, calls, function()
 			local output, err = runner.run({ command = "git", args = { "status" } }, 10)

@@ -9,6 +9,7 @@ local Path = require(".core-path")
 local Runner = require(".core-runner")
 local State = require(".core-state")
 local Targets = require(".core-targets")
+local SvnBackend = require(".backend-svn")
 
 local M = {}
 
@@ -18,6 +19,22 @@ end
 
 local function run(kind, root, args, cfg)
 	return Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+end
+
+local function tracked_directory(root, path, cfg)
+	local output, err = run("git", root, { "--literal-pathspecs", "ls-files", "--cached", "--", path }, cfg)
+	if not output or not output.status.success then return nil, err or Runner.error_text(output) end
+	return tostring(output.stdout or ""):match("%S") ~= nil
+end
+
+local function versioned_path(kind, root, path, cfg)
+	if kind == "git" then return tracked_directory(root, path, cfg) end
+	local output, err = run("svn", root, SvnBackend.versioned_path_args(path), cfg)
+	if not output then return nil, err or "could not query SVN path metadata" end
+	if output.timed_out then return nil, Runner.error_text(output, err) end
+	if not output.status.success then return false end
+	local item = Runner.summary(output.stdout, 40)
+	return item == "directory" or item == "file"
 end
 
 local function move_args(kind, paths, destination)
@@ -224,7 +241,18 @@ function M.delete()
 
 		local statuses = {}
 		for _, path in ipairs(relative) do statuses[path] = State.status_of(scope.root, path) end
-		local kept, excluded = Targets.exclude_untracked(relative, statuses)
+		local versioned = {}
+		if scope.kind == "git" or scope.kind == "svn" then
+			for i, source in ipairs(sources) do
+				local path = relative[i]
+				if source.is_dir and statuses[path] == "untracked" then
+					local tracked, tracked_err = versioned_path(scope.kind, scope.root, path, cfg)
+					if tracked == nil then return fail(scope.kind, "status", nil, tracked_err) end
+					versioned[path] = tracked
+				end
+			end
+		end
+		local kept, excluded = Targets.exclude_untracked(relative, statuses, versioned)
 		if #excluded > 0 then
 			Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", "))
 		end

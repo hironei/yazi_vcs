@@ -111,6 +111,7 @@ return function(t)
 	local _, invalid = targets.relative({ "/other/a" }, "/repo")
 	t.eq(invalid, "/other/a", "paths outside root are rejected")
 	t.deep_eq(targets.exclude_untracked({ "a", "b", "c" }, { a = "untracked", b = "modified" }), { "b", "c" }, "untracked paths are excluded")
+	t.deep_eq(targets.exclude_untracked({ "tracked-dir", "new-dir" }, { ["tracked-dir"] = "untracked", ["new-dir"] = "untracked" }, { ["tracked-dir"] = true }), { "tracked-dir" }, "tracked directories remain eligible when status was aggregated from an untracked child")
 	t.deep_eq(targets.exclude_ignored({ "a", "b", "c" }, { a = "ignored", b = "excluded" }), { "c" }, "ignored/excluded paths are excluded from add")
 	t.eq(targets.describe({ "a", "日本語.txt" }), "  a\n  日本語.txt", "target descriptions preserve path text")
 end

@@ -182,10 +182,10 @@ end
 ---@param statuses table<string,string>|nil
 ---@return string[] kept
 ---@return string[] excluded
-function M.exclude_untracked(relative_paths, statuses)
+function M.exclude_untracked(relative_paths, statuses, versioned)
 	local kept, excluded = {}, {}
 	for _, path in ipairs(relative_paths) do
-		if statuses and (statuses[path] == "untracked" or statuses[path] == "ignored" or statuses[path] == "excluded") then
+		if not (versioned and versioned[path]) and statuses and (statuses[path] == "untracked" or statuses[path] == "ignored" or statuses[path] == "excluded") then
 			excluded[#excluded + 1] = path
 		else
 			kept[#kept + 1] = path

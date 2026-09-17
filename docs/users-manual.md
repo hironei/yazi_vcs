@@ -97,6 +97,7 @@ require("vcs"):setup()
 | `status.ignore_externals` | `true` | SVN externalsを状態取得から除外 |
 | `info.enabled` | `true` | status bar右側のGit branch／SVN位置表示 |
 | `info.order` | `600` | リポジトリ位置表示の順序 |
+| `info.refresh_ms` | `5000` | Git branch／revision／SVN URLを再取得する間隔（ミリ秒）。`0`以下で毎回取得 |
 | `editor.command` | `"nvim"` | CLI Diff／Log表示のfallbackに使うコマンド。CommitはGit／SVNのeditor設定を使用 |
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
@@ -243,7 +244,7 @@ use its name in `run`, for example `run = "plugin vcs -- branch list"`.
 
 repository root、またはrepository rootをcwdとしているscopeのDiff／Logでは、`.`をpath filterとして渡さずリポジトリ全体を表示します。通常のselected pathやroot以外のcwdでは、そのpathだけを対象にします。
 
-Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みの内容をCommitします。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
+Gitの`commit.git_mode`を`"staged"`へ変更した場合は、Git Commit時にパスを渡さず、あらかじめstage済みのindex全体をCommitします。確認文にも、選択パスはindexの絞り込みにならないことを表示します。既定値は`"paths"`で、選択したパスがGitに暗黙的にstageされます。
 
 Commitのメッセージ編集はプラグインの`editor`設定を使用せず、Git／SVNの標準editor解決を使用します。Gitは`GIT_EDITOR`、`core.editor`、`VISUAL`、`EDITOR`の順、SVNは`SVN_EDITOR`、`editor-cmd`、`VISUAL`、`EDITOR`の順で解決します。Git／SVNが生成する変更ファイル一覧やcommit templateもそのまま表示されます。
 

@@ -20,6 +20,14 @@ local LogPreview = require(".core-log-preview")
 
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
+local DEFAULT_INFO_REFRESH_MS = 5000
+local info_refresh_at = {}
+
+local function should_refresh_info(root, cfg)
+	local refresh_ms = tonumber(cfg.info and cfg.info.refresh_ms or DEFAULT_INFO_REFRESH_MS) or DEFAULT_INFO_REFRESH_MS
+	local last = info_refresh_at[root]
+	return VcsInfo.refresh_due(last, math.floor(ya.time() * 1000), refresh_ms)
+end
 
 local function fetch_vcs_info(kind, root, cfg)
 	local backend = BACKENDS[kind]
@@ -108,9 +116,16 @@ local function refresh_vcs_status(job)
 	local cwd_rel = Path.strip_prefix(root_str, cwd_str) or ""
 	FileStatus.merge(changed, FileStatus.propagate_down(excluded, cwd_rel))
 	for _, rel in ipairs(queried) do if changed[rel] == nil then changed[rel] = "clean" end end
-	-- Refresh repository metadata together with status. The branch or SVN
-	-- location may have changed outside Yazi since the previous fetch.
-	local vcs_info = fetch_vcs_info(kind, root_str, cfg)
+	-- Refresh metadata on a bounded cadence. Explicit refresh paths clear the
+	-- State cache first, so they still force an immediate branch/location query.
+	local vcs_info = State.info_of(root_str)
+	if not vcs_info or vcs_info.kind ~= kind or should_refresh_info(root_str, cfg) then
+		local refreshed = fetch_vcs_info(kind, root_str, cfg)
+		if refreshed then
+			vcs_info = refreshed
+			info_refresh_at[root_str] = math.floor(ya.time() * 1000)
+		end
+	end
 	State.remember(cwd_str, root_str, changed, vcs_info)
 	return "ok"
 end
@@ -118,10 +133,7 @@ end
 ---@type UnstableFetcher
 function M:fetch(job)
 	if not job.files or #job.files == 0 then return Fetcher.noop(job) end
-	local status, err = refresh_vcs_status(job)
-	if status == "noop" then return Fetcher.noop(job) end
-	if status == "error" then return Fetcher.error(job, err) end
-	return Fetcher.retry(job)
+	return Fetcher.safe_refresh(refresh_vcs_status, job)
 end
 
 function M:entry(job)

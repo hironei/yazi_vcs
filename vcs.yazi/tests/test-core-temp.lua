@@ -9,4 +9,28 @@ return function(t)
 	if package.config:sub(1, 1) == "\\" then
 		t.truthy(first:match("^%a:[/\\]") or first:match("^\\\\"), "Windows temporary path is native and absolute")
 	end
+
+	do
+		local old_fs, old_url = _G.fs, _G.Url
+		local calls = {}
+		_G.Url = function(path) return path end
+		_G.fs = {
+			unique = function(kind, requested)
+				calls.unique = { kind, requested }
+				return requested .. "-reserved"
+			end,
+			write = function(path, content)
+				calls.write = { path, content }
+				return true
+			end,
+		}
+		local ok, err = pcall(function()
+			local written = temp.write("candidate.tmp", "payload")
+			t.eq(written, "candidate.tmp-reserved", "temporary write returns the reserved unique path")
+			t.deep_eq(calls.unique, { "file", "candidate.tmp" }, "temporary write reserves a file through fs.unique")
+			t.deep_eq(calls.write, { "candidate.tmp-reserved", "payload" }, "temporary write uses the reserved path")
+		end)
+		_G.fs, _G.Url = old_fs, old_url
+		if not ok then error(err, 0) end
+	end
 end

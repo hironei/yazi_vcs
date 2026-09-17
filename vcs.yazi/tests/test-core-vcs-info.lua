@@ -37,4 +37,8 @@ return function(t)
 	t.eq(info.git_target("main", "src/foo.lua"), "main/src/foo.lua", "Git target appends the root-relative path")
 	t.eq(info.format("git", { branch = "main" }), "(main)", "Git metadata is formatted like a shell prompt")
 	t.falsy(info.format("git", nil), "missing metadata is not rendered")
+	t.truthy(info.refresh_due(nil, 1000, 5000), "metadata is fetched when no refresh timestamp exists")
+	t.falsy(info.refresh_due(1000, 5999, 5000), "metadata remains cached before the refresh interval")
+	t.truthy(info.refresh_due(1000, 6000, 5000), "metadata refreshes at the configured interval")
+	t.truthy(info.refresh_due(1000, 1001, 0), "zero interval forces metadata refresh")
 end

@@ -9,7 +9,7 @@ M.defaults = {
 		ignored = "I", clean = " ",
 	},
 	status = { order = 500, aggregate_directories = true, ignore_externals = true },
-	info = { enabled = true, order = 600 },
+	info = { enabled = true, order = 600, refresh_ms = 5000 },
 	-- Used by the pager/editor fallback for CLI Diff/Log. Commit delegates
 	-- editor resolution to Git/SVN instead of using this setting.
 	editor = { command = "nvim", args = {} },

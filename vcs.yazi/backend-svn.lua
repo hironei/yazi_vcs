@@ -28,6 +28,10 @@ function M.info_spec(root)
 	return { command = "svn", args = { "info", "--show-item", "url" }, cwd = root }
 end
 
+function M.versioned_path_args(pathname)
+	return { "info", "--show-item", "kind", "--", pathname }
+end
+
 function M.revision_spec(root, relative_path)
 	return {
 		command = "svn",

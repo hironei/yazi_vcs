@@ -12,6 +12,13 @@ function M.validate_name_input(name)
 	local first = name:sub(1, 1); if first == "@" or first == "-" then return false, "branch names beginning with @ or - are not accepted" end
 	return true, nil
 end
+function M.validate_ref_input(name, label)
+	name = tostring(name or "")
+	if name == "" then return false, (label or "ref") .. " is empty" end
+	local first = name:sub(1, 1)
+	if first == "@" or first == "-" then return false, (label or "ref") .. " must not begin with @ or -" end
+	return true, nil
+end
 function M.check_ref_format_args(name) return { "check-ref-format", "--branch", name } end
 function M.push_args(remote, branch, set_upstream)
 	local args = { "push" }; if set_upstream then args[#args + 1] = "--set-upstream" end
