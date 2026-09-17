@@ -11,7 +11,7 @@ local suites = {
 	"test-backend-svn", "test-operations", "test-git-phase3",
 	"test-core-vcs-info", "test-core-fetcher", "test-core-context", "test-core-changes",
 	"test-core-temp", "test-core-versioned-path", "test-core-log-preview", "test-core-preview", "test-core-notify", "test-core-state",
-	"test-file-actions",
+	"test-file-actions", "test-copy-actions",
 }
 for _, name in ipairs(suites) do
 	print("== " .. name .. " ==")

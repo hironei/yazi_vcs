@@ -33,6 +33,7 @@
 - [ ] [#42](https://github.com/hironei/yazi_vcs/issues/42) — VCS Changes View（Git/SVN変更一覧、Search View選択、Diff／Log／Add／Commit／Discard連携）を実装。自動テスト済み、実Yazi UIとWindows/Git Bashの手動確認待ち。
 - [x] [#58](https://github.com/hironei/yazi_vcs/issues/58) — Add VCS-aware file and directory delete for Git and SVN; automated coverage is complete, with live Yazi confirmation remaining a manual boundary.
 - [x] [#79](https://github.com/hironei/yazi_vcs/issues/79) — 構造化コマンド監査ログ（opt-in、`core-runner.lua`の実行記録、認証情報マスキング）。
+- [x] [#82](https://github.com/hironei/yazi_vcs/issues/82) — Decode percent-encoded UTF-8 in copied SVN URLs while preserving URL syntax and Git output.
 
 ## Review findings #60-#75（2026-09-17）
 

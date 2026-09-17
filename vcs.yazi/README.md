@@ -8,6 +8,7 @@ Phase 4の操作:
 - 外部Diff／Log: `plugin vcs -- diff --external`、`plugin vcs -- log --external`
 - クリップボード: `plugin vcs -- copy-url`、`plugin vcs -- copy-url-revision`
 - クリップボード対象は選択対象（複数選択時は先頭）で、SVNはURL、Gitは`branch/root-relative-path`形式です
+- SVN URLのpercent-encoded UTF-8 path text is decoded for readable Unicode output; encoded URL delimiters and malformed escapes are preserved
 - TUIは`interactive = true`で`ui.hide()`配下、GUIは`interactive = false`で非占有起動
 - WSLの`wslpath -w`、Git Bashの`cygpath -w`による外部GUIパス変換
 
