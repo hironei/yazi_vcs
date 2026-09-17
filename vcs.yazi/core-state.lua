@@ -105,6 +105,8 @@ M.forget = ya.sync(function(state, cwd)
 	end
 	state.roots[root] = nil
 	state.vcs_info[root] = nil
+	state.vcs_info_refresh_at = state.vcs_info_refresh_at or {}
+	state.vcs_info_refresh_at[root] = nil
 	ui.render()
 end)
 
@@ -113,6 +115,8 @@ M.clear_root = ya.sync(function(state, root)
 	state.vcs_info = state.vcs_info or {}
 	state.roots[root] = nil
 	state.vcs_info[root] = nil
+	state.vcs_info_refresh_at = state.vcs_info_refresh_at or {}
+	state.vcs_info_refresh_at[root] = nil
 	ui.render()
 end)
 
@@ -144,6 +148,16 @@ end)
 M.info_of = ya.sync(function(state, root)
 	state.vcs_info = state.vcs_info or {}
 	return state.vcs_info[root]
+end)
+
+M.info_refresh_at = ya.sync(function(state, root)
+	state.vcs_info_refresh_at = state.vcs_info_refresh_at or {}
+	return state.vcs_info_refresh_at[root]
+end)
+
+M.mark_info_refresh = ya.sync(function(state, root, timestamp)
+	state.vcs_info_refresh_at = state.vcs_info_refresh_at or {}
+	state.vcs_info_refresh_at[root] = timestamp
 end)
 
 return M

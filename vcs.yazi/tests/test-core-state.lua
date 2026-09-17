@@ -27,6 +27,8 @@ return function(t)
 	t.falsy(state_module.is_vcs_spot_active(state), "state clears the VCS Spot active flag with Spotters")
 	state_module.set_vcs_spot_active(state, false)
 	t.falsy(state_module.is_vcs_spot_active(state), "state clears the VCS Spot active flag")
+	state_module.mark_info_refresh(state, "C:/repo", 1000)
+	t.eq(state_module.info_refresh_at(state, "C:/repo"), 1000, "state stores the metadata refresh timestamp")
 
 	_G.ya = old_ya
 end

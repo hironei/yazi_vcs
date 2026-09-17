@@ -13,6 +13,7 @@ local Changes = require(".core-changes")
 local LogPreview = require(".core-log-preview")
 local Commands = require(".core-commands")
 local Temp = require(".core-temp")
+local VersionedPath = require(".core-versioned-path")
 local GitBackend = require(".backend-git")
 local SvnBackend = require(".backend-svn")
 local VcsInfo = require(".core-vcs-info")
@@ -38,20 +39,8 @@ local function run(root, command, args, cfg)
 	return Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
 end
 
-local function tracked_directory(root, path, cfg)
-	local output, err = run(root, "git", { "--literal-pathspecs", "ls-files", "--cached", "--", path }, cfg)
-	if not output or not output.status.success then return nil, err or Runner.error_text(output) end
-	return tostring(output.stdout or ""):match("%S") ~= nil
-end
-
 local function versioned_path(kind, root, path, cfg)
-	if kind == "git" then return tracked_directory(root, path, cfg) end
-	local output, err = run(root, "svn", SvnBackend.versioned_path_args(path), cfg)
-	if not output then return nil, err or "could not query SVN path metadata" end
-	if output.timed_out then return nil, Runner.error_text(output, err) end
-	if not output.status.success then return false end
-	local item = Runner.summary(output.stdout, 40)
-	return item == "directory" or item == "file"
+	return VersionedPath.query(kind, root, path, cfg)
 end
 
 local function argv(configured, fallback_command, fallback_args)

@@ -557,6 +557,7 @@ CLI呼び出し（batched status取得）と`coroutine.yield`のループを1つ
 st.dirs         = { [dir] = root }       -- ディレクトリ→VCSルートの逆引き
 st.roots        = { [root] = { [relpath] = status } }
 st.vcs_info     = { [root] = metadata }  -- branch、revision、SVN URLなど
+st.vcs_info_refresh_at = { [root] = timestamp } -- metadata query attempt time
 st.actions      = { [root] = true }      -- root単位の操作ロック
 st.vcs_spot_*   = ...                    -- VCS Log Spotの一時状態
 ```

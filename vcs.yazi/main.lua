@@ -21,11 +21,10 @@ local LogPreview = require(".core-log-preview")
 local BACKENDS = { git = require(".backend-git"), svn = require(".backend-svn") }
 local M = {}
 local DEFAULT_INFO_REFRESH_MS = 5000
-local info_refresh_at = {}
 
 local function should_refresh_info(root, cfg)
 	local refresh_ms = tonumber(cfg.info and cfg.info.refresh_ms or DEFAULT_INFO_REFRESH_MS) or DEFAULT_INFO_REFRESH_MS
-	local last = info_refresh_at[root]
+	local last = State.info_refresh_at(root)
 	return VcsInfo.refresh_due(last, math.floor(ya.time() * 1000), refresh_ms)
 end
 
@@ -119,11 +118,11 @@ local function refresh_vcs_status(job)
 	-- Refresh metadata on a bounded cadence. Explicit refresh paths clear the
 	-- State cache first, so they still force an immediate branch/location query.
 	local vcs_info = State.info_of(root_str)
-	if not vcs_info or vcs_info.kind ~= kind or should_refresh_info(root_str, cfg) then
+	if (vcs_info and vcs_info.kind ~= kind) or should_refresh_info(root_str, cfg) then
+		State.mark_info_refresh(root_str, math.floor(ya.time() * 1000))
 		local refreshed = fetch_vcs_info(kind, root_str, cfg)
 		if refreshed then
 			vcs_info = refreshed
-			info_refresh_at[root_str] = math.floor(ya.time() * 1000)
 		end
 	end
 	State.remember(cwd_str, root_str, changed, vcs_info)
