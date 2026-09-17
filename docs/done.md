@@ -5,8 +5,8 @@
 - Hardened Git branch/ref input handling, tracked-directory safety, context metadata fallback, fetcher exception handling, and cached VCS metadata refresh.
 - Centralized temporary output handling on the async filesystem API, made temporary names non-predictable, bounded action notifications, and clarified staged-mode commit confirmation and configurable recursive discard confirmation.
 - Isolated Git integration tests from ambient `GIT_EDITOR`/`VISUAL`/`EDITOR` variables.
-- Reconciled requirements, design, user manual, TODO, and agent guidance with the current Linemode, native editor, keymap, backend, state, and automated-vs-live validation boundaries. Structured command audit logging remains deferred as Issue #73 follow-up scope.
-- Windows Lua tests: 542 passed / 0 failed, including a run with all three editor environment variables set.
+- Reconciled requirements, design, user manual, TODO, and agent guidance with the current Linemode, native editor, keymap, backend, state, and automated-vs-live validation boundaries. Structured command audit logging remains deferred to Issue #79.
+- Windows Lua tests after merge: 606 passed / 0 failed, including a run with all three editor environment variables set.
 - Issues: [#60](https://github.com/hironei/yazi_vcs/issues/60)〜[#75](https://github.com/hironei/yazi_vcs/issues/75)
 
 ## 2026-09-15 — VCS-aware file and directory delete (Issue #58)

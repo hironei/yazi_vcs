@@ -178,6 +178,7 @@ vcs.yazi/
 ├── core-scope.lua        -- 共通scope解決と失敗通知
 ├── core-targets.lua      -- 操作scopeと対象ファイル決定
 ├── core-external.lua     -- エディタ／pager／外部ツール起動
+├── core-git.lua          -- Git固有操作の引数生成と出力解析
 ├── core-commands.lua     -- Git／SVNのコマンド引数
 ├── core-changes.lua      -- Changes Viewの対象分類
 ├── core-status.lua       -- 状態集約・伝播・表示
@@ -186,6 +187,7 @@ vcs.yazi/
 ├── core-log-preview.lua  -- Git／SVN履歴解析
 ├── core-preview.lua      -- 標準preview委譲
 ├── core-temp.lua         -- 一時ファイルと出力表示
+├── core-versioned-path.lua -- 集約statusとは独立したtracked／versioned path判定
 ├── core-path.lua         -- パス正規化・変換
 ├── core-notify.lua       -- 通知整形
 ├── core-state.lua        -- ya.sync 越しの状態read/write
@@ -1417,7 +1419,7 @@ permit:drop()
 
 ### 21.3 ログ
 
-構造化されたコマンド監査ログ（コマンド、引数、cwd、終了コード、実行時間、stderrのマスキング）は現行スコープでは未実装とし、Issue #73の後続対応へ延期する。現行実装の`VCS_YAZI_TRACE=1`は限定的な操作トレースに留め、認証情報を意図的に出力しない。
+構造化されたコマンド監査ログ（コマンド、引数、cwd、終了コード、実行時間、stderrのマスキング）は現行スコープでは未実装とし、Issue #79へ延期する。現行実装の`VCS_YAZI_TRACE=1`は限定的な操作トレースに留め、認証情報を意図的に出力しない。
 
 - 実行コマンド
 - 引数
@@ -1426,7 +1428,7 @@ permit:drop()
 - 実行時間
 - 標準エラー
 
-認証情報、トークン、パスワードはログに出力しない。構造化stderrのマスキングは後続Issueで設計・実装する。
+認証情報、トークン、パスワードはログに出力しない。構造化stderrのマスキングはIssue #79で設計・実装する。
 
 ---
 

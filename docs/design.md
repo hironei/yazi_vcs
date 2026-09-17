@@ -15,7 +15,13 @@
 - `core-scope.lua`: context snapshotからの共通scope解決と失敗通知
 - `core-detector.lua` / `core-targets.lua` / `core-path.lua`: root検出、scope解決、対象選択、境界検証、パス変換
 - `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、GUI orphan起動。Issue #38では変更しない（要件§8.7.2）
-- `core-state.lua`: `ya.sync`越しのroot別status/infoと操作ロック
+- `core-state.lua`: `ya.sync`越しのroot別status/info、metadata再取得時刻、操作ロック
+- `core-status.lua`: 状態優先度、ディレクトリ集約、ignored伝播
+- `core-versioned-path.lua`: 集約statusが`untracked`でも実際にGit／SVN管理下のpathかを`git ls-files --cached`／`svn info --show-item kind`で判定
+- `core-changes.lua`: Changes Viewの対象一覧とtracked／untracked分類
+- `core-log-preview.lua`: log preview／Spot用の履歴引数生成と解析
+- `core-preview.lua`: 旧previewer登録を標準previewへ委譲
+- `core-temp.lua`: 一時ファイルの作成・削除とpager/editorでの出力表示
 - `core-external.lua` / `core-vcs-info.lua` / `core-notify.lua`: 外部設定、表示整形、通知
 - `config.lua`: 既定値とユーザー設定のマージ
 
