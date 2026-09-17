@@ -247,10 +247,11 @@ desc = "Copy VCS URL with revision"
 
 キー列は任意に変更できます。既存のキー割り当てと衝突する場合は、`on`の値を変更してください。
 
-For SVN URL copy actions, percent-encoded UTF-8 path text is decoded so
-Japanese and other non-ASCII names remain readable in the clipboard and the
-status bar. ASCII escapes for spaces and URL delimiters, malformed escapes,
-literal plus signs, and Git's existing copy format are preserved.
+For SVN URL copy actions, valid percent-encoded UTF-8 in the repository-root
+URL is decoded so Japanese and other non-ASCII names remain readable in the
+clipboard and the status bar. The local relative target path is appended
+as-is. ASCII escapes in the SVN root URL, malformed escapes, literal plus
+signs, and Git's existing copy format are preserved.
 
 `plugin vcs -- branch` opens the Git branch action prompt for `list`, `create`,
 `create-switch`, `rename`, and `delete`. To bind a single subaction directly,

@@ -99,7 +99,7 @@ end
 ---@return string
 function M.svn_target_url(root_url, relpath)
 	root_url = M.decode_percent_utf8(trim_slashes(root_url))
-	relpath = M.decode_percent_utf8(relative_path(relpath))
+	relpath = relative_path(relpath)
 	if root_url == "" then return relpath end
 	return relpath == "" and root_url or root_url .. "/" .. relpath
 end

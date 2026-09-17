@@ -2,10 +2,10 @@
 
 ## 2026-09-17 — Readable Unicode SVN URL copy (Issue #82)
 
-- Decode valid percent-encoded UTF-8 path text in SVN target URLs used by the
-  clipboard actions and status bar.
-- Preserve encoded ASCII URL delimiters, spaces, plus signs, malformed escapes,
-  and Git's existing `branch/root-relative-path` output.
+- Decode valid percent-encoded UTF-8 in the SVN repository-root URL used by the
+  clipboard actions and status bar; append local relative paths unchanged.
+- Preserve encoded ASCII URL delimiters, malformed escapes, and Git's existing
+  `branch/root-relative-path` output.
 - Added pure URL-formatting and clipboard-action regression coverage.
   Automated Lua and live Yazi / system clipboard acceptance remain separate.
 - Issue: [#82](https://github.com/hironei/yazi_vcs/issues/82)

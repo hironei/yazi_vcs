@@ -61,20 +61,29 @@ return function(t)
 		emit = function() end,
 	}
 	package.loaded.actions = nil
-	local actions = require("actions")
-	actions.copy_url()
-	t.eq(copied[1], "https://host/svn/日本/資料.txt", "copy-url copies a readable Unicode SVN URL")
+	local function cleanup()
+		_G.ya = old_ya
+		package.loaded.actions = old_actions
+		for _, name in ipairs(names) do package.loaded[name] = saved_modules[name] end
+	end
+	local ok, err = xpcall(function()
+		local actions = require("actions")
+		actions.copy_url()
+		t.eq(copied[1], "https://host/svn/日本/資料.txt", "copy-url copies a readable Unicode SVN URL")
 
-	actions.copy_url_revision()
-	t.eq(copied[2], "https://host/svn/日本/資料.txt@42", "copy-url-revision preserves the decoded path and revision")
-	t.deep_eq(runner_calls[1], {
-		command = "svn",
-		args = { "info", "--show-item", "revision", "--", "資料.txt" },
-		cwd = "/wc",
-	}, "copy-url-revision still queries the selected local path")
-	t.eq(#notifications, 2, "successful copy actions report both clipboard operations")
-
-	_G.ya = old_ya
-	package.loaded.actions = old_actions
-	for _, name in ipairs(names) do package.loaded[name] = saved_modules[name] end
+		actions.copy_url_revision()
+		t.eq(copied[2], "https://host/svn/日本/資料.txt@42", "copy-url-revision preserves the decoded path and revision")
+		t.deep_eq(runner_calls[1], {
+			command = "svn",
+			args = { "info", "--show-item", "revision", "--", "資料.txt" },
+			cwd = "/wc",
+		}, "copy-url-revision still queries the selected local path")
+		t.eq(#notifications, 2, "successful copy actions report both clipboard operations")
+		for i = 1, 2 do
+			t.eq(notifications[i][1], "Copied to clipboard: %s", "copy action reports an info notification")
+			t.eq(notifications[i][2], copied[i], "copy action notification names the copied value")
+		end
+	end, debug.traceback)
+	cleanup()
+	if not ok then error(err, 0) end
 end

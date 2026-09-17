@@ -34,9 +34,14 @@ return function(t)
 	t.eq(info.svn_target_url(svn.url, "."), "https://host/svn/base_url/trunk", "SVN root target accepts the relative dot")
 	t.eq(info.decode_percent_utf8("%E6%97%A5%E6%9C%AC%E8%AA%9E"), "日本語", "percent-encoded UTF-8 decodes to readable Unicode")
 	t.eq(
-		info.svn_target_url("https://host/svn/%E6%97%A5%E6%9C%AC", "docs/%E8%B3%87%E6%96%99.txt"),
+		info.svn_target_url("https://host/svn/%E6%97%A5%E6%9C%AC", "docs/資料.txt"),
 		"https://host/svn/日本/docs/資料.txt",
-		"SVN target URLs decode encoded Unicode in root and relative paths"
+		"SVN target URLs decode encoded Unicode in the repository root"
+	)
+	t.eq(
+		info.svn_target_url("https://host/svn/trunk", "%E8%B3%87%E6%96%99.txt"),
+		"https://host/svn/trunk/%E8%B3%87%E6%96%99.txt",
+		"literal percent escapes in local relative paths remain unchanged"
 	)
 	t.eq(
 		info.format("svn", { url = "https://host/svn/%E6%97%A5%E6%9C%AC" }, "資料.txt"),
@@ -49,9 +54,9 @@ return function(t)
 		"revision suffix remains intact after URL decoding"
 	)
 	t.eq(
-		info.svn_target_url("https://host/svn/trunk", "日本語/a+b%20file%2Fname.txt"),
-		"https://host/svn/trunk/日本語/a+b%20file%2Fname.txt",
-		"SVN URL presentation preserves literal plus, spaces, and encoded delimiters"
+		info.svn_target_url("https://host/svn/trunk", "日本語/a+b file/name.txt"),
+		"https://host/svn/trunk/日本語/a+b file/name.txt",
+		"SVN URL presentation preserves the raw local path"
 	)
 	t.eq(
 		info.decode_percent_utf8("bad-%E6%97-incomplete-%ZZ-%E6%28%A1"),

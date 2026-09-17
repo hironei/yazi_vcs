@@ -462,16 +462,17 @@ behavior remain separate manual acceptance boundaries.
 Keep URL presentation in `core-vcs-info.lua`, the existing pure module that
 constructs SVN target URLs for both the status bar and `actions.lua`. Add a
 small percent-decoder that converts only percent-encoded UTF-8 bytes belonging
-to non-reserved path text. It must leave encoded URL delimiters (`/`, `?`, `#`),
-`+`, malformed escapes, and ordinary text unchanged. This prevents a filename
-from becoming URL syntax while still turning SVN's escaped Japanese path into
-readable clipboard text.
+to non-reserved text in the SVN metadata root URL. It must leave encoded URL
+delimiters (`/`, `?`, `#`), `+`, malformed escapes, and ordinary text unchanged.
+The local root-relative path is already a filesystem path and must not be
+decoded; this prevents a literal filename such as `%E6%97%A5.txt` from becoming
+a different target.
 
-`svn_target_url()` constructs the root URL and root-relative path as before,
-then applies the presentation decoder to the complete SVN URL. No command
-arguments, filesystem paths, repository metadata, Git target format, or
-revision query changes. `copy-url-revision` continues to append `@revision`
-after target URL presentation, preserving the existing revision semantics.
+`svn_target_url()` decodes the trimmed root URL, then constructs the URL with
+the unchanged root-relative path. No command arguments, filesystem paths,
+repository metadata, Git target format, or revision query changes.
+`copy-url-revision` continues to append `@revision` after target URL
+presentation, preserving the existing revision semantics.
 
 Unit tests in `test-core-vcs-info.lua` cover encoded UTF-8, mixed path text,
 reserved delimiters, plus signs, malformed escapes, already-readable Unicode,
