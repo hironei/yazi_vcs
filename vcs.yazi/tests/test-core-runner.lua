@@ -16,6 +16,31 @@ return function(t)
 		{ "--token", "[REDACTED]", "--password=[REDACTED]", "https://[REDACTED]@example.com" },
 		"mask_args removes standalone and embedded credential values"
 	)
+	t.eq(
+		runner.mask_text("Authorization: Basic basic-secret"),
+		"Authorization: Basic [REDACTED]",
+		"mask_text removes Basic authorization values"
+	)
+	t.eq(
+		runner.mask_text("git -c http.extraHeader=Authorization: Basic basic-secret"),
+		"git -c http.extraHeader=Authorization: Basic [REDACTED]",
+		"mask_text removes Basic values in http.extraHeader arguments"
+	)
+	t.deep_eq(
+		runner.mask_args({ "-c", "http.extraHeader=Authorization: Basic basic-secret" }),
+		{ "-c", "http.extraHeader=Authorization: Basic [REDACTED]" },
+		"mask_args removes Basic values in a Git config argument"
+	)
+	t.eq(
+		runner.mask_text("GITHUB_TOKEN=github-secret private_token:private-secret oauth_token=oauth-secret"),
+		"GITHUB_TOKEN=[REDACTED] private_token:[REDACTED] oauth_token=[REDACTED]",
+		"mask_text matches credential key names containing token"
+	)
+	t.eq(
+		runner.mask_text("https://u:p@ss@host.example/repo"),
+		"https://[REDACTED]@host.example/repo",
+		"mask_text masks URL userinfo through the last at-sign"
+	)
 
 	do
 		local poll_ms, expired = runner.next_poll(nil, 1000)
@@ -49,6 +74,7 @@ return function(t)
 		function child:start_kill() calls.killed = calls.killed + 1 end
 		function child:wait()
 			calls.waited = calls.waited + 1
+			if calls.wait_error then return nil, calls.wait_error end
 			return status
 		end
 
@@ -63,10 +89,13 @@ return function(t)
 				function command:stdout(value) calls.stdout = value; return self end
 				function command:stderr(value) calls.stderr = value; return self end
 				function command:cwd(value) calls.cwd = value; return self end
-				function command:spawn() return child end
+				function command:spawn()
+					if calls.spawn_error then return nil, calls.spawn_error end
+					return child
+				end
 				function command:status()
 					if calls.status_error then error(calls.status_error) end
-					return status
+					return status, calls.status_return_error
 				end
 				return command
 			end,
@@ -140,12 +169,28 @@ return function(t)
 	do
 		local Command, calls = fake_command({ 3 }, { success = false, code = 137 })
 		with_fake_yazi(Command, calls, function()
-			local output, err = runner.run({ command = "git", args = { "status" } }, 10)
+			local output, err = runner.run({ command = "git", args = { "status" } }, 10, { enabled = true })
 			t.falsy(err, "timeout is returned as a command result")
 			t.truthy(output.timed_out, "runner marks a timed-out child")
 			t.eq(output.status.success, false, "timed-out child is unsuccessful")
 			t.eq(calls.killed, 1, "runner kills a timed-out child")
 			t.eq(calls.waited, 1, "runner waits after killing a timed-out child")
+			t.eq(#calls.debug_messages, 1, "audit records a timeout")
+			t.truthy(calls.debug_messages[1]:match('"stderr":"command timed out"'), "timeout reason is recorded as stderr")
+		end)
+	end
+
+	do
+		local Command, calls = fake_command({}, { success = true, code = 0 })
+		calls.spawn_error = "spawn failed"
+		with_fake_yazi(Command, calls, function()
+			local output, err = runner.run({ command = "git", args = { "status" } }, 1000, { enabled = true })
+			t.falsy(output, "runner returns no output after a spawn failure")
+			t.eq(err, "spawn failed", "runner returns the spawn failure")
+			t.eq(#calls.debug_messages, 1, "audit records a spawn failure")
+			t.truthy(calls.debug_messages[1]:match('"exit_code":null'), "spawn failure has no exit code")
+			t.truthy(calls.debug_messages[1]:match('"error":"spawn failed"'), "spawn failure reason is recorded separately")
+			t.truthy(calls.debug_messages[1]:match('"stderr":null'), "spawn failure has no captured stderr")
 		end)
 	end
 
@@ -168,10 +213,26 @@ return function(t)
 		local Command, calls = fake_command({}, { success = true, code = 0 })
 		calls.construct_error = "construction failed"
 		with_fake_yazi(Command, calls, function()
-			local status, err = runner.interactive({ command = "missing" })
+			local status, err = runner.interactive({ command = "missing" }, { enabled = true })
 			t.falsy(status, "interactive runner returns no status after a Lua error")
 			t.truthy(tostring(err):match("construction failed"), "interactive runner returns the Lua error")
 			t.eq(calls.dropped, 1, "interactive runner drops the permit after a Lua error")
+			t.eq(#calls.debug_messages, 1, "audit records an interactive Lua error")
+			t.truthy(calls.debug_messages[1]:match('"stderr":null'), "interactive Lua errors do not become stderr")
+			t.truthy(calls.debug_messages[1]:match('"error":".-construction failed"'), "interactive Lua error is recorded separately")
+		end)
+	end
+
+	do
+		local Command, calls = fake_command({}, { success = true, code = 0 })
+		calls.status_error = "status failed"
+		with_fake_yazi(Command, calls, function()
+			local status, err = runner.interactive({ command = "missing" }, { enabled = true })
+			t.falsy(status, "interactive runner returns no status after status failure")
+			t.truthy(tostring(err):match("status failed"), "status failure is returned to the caller")
+			t.eq(#calls.debug_messages, 1, "audit records an interactive status failure")
+			t.truthy(calls.debug_messages[1]:match('"exit_code":null'), "status failure has no exit code")
+			t.truthy(calls.debug_messages[1]:match('"error":".-status failed"'), "status failure reason is recorded separately")
 		end)
 	end
 end

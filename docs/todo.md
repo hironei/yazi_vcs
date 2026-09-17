@@ -39,7 +39,7 @@
 - [x] [#60](https://github.com/hironei/yazi_vcs/issues/60)〜[#62](https://github.com/hironei/yazi_vcs/issues/62) — branch/ref入力検証、tracked directory判定、File metadata fallback
 - [x] [#63](https://github.com/hironei/yazi_vcs/issues/63)〜[#70](https://github.com/hironei/yazi_vcs/issues/70) — runner/fetcher、temporary file、confirmation、staged commit、remote fast path、通知要約、editor環境分離
 - [x] [#71](https://github.com/hironei/yazi_vcs/issues/71)〜[#72](https://github.com/hironei/yazi_vcs/issues/72) — status表示位置とmodule/backend/state documentation
-- [x] [#73](https://github.com/hironei/yazi_vcs/issues/73) — structured command audit loggingを[#79](https://github.com/hironei/yazi_vcs/issues/79)へ延期し、現行の限定traceを明記
+- [x] [#73](https://github.com/hironei/yazi_vcs/issues/73) — structured command audit loggingを[#79](https://github.com/hironei/yazi_vcs/issues/79)へ移管し、[#79](https://github.com/hironei/yazi_vcs/issues/79)で実装。旧限定traceは廃止
 - [x] [#74](https://github.com/hironei/yazi_vcs/issues/74)〜[#75](https://github.com/hironei/yazi_vcs/issues/75) — docsの検証境界、native editor、keymap、内部仕様の言語方針を整理
 
 ## 目視確認（ユーザー対応が必要）

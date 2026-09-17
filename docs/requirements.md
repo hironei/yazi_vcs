@@ -1433,8 +1433,9 @@ permit:drop()
 - `exit_code`: 終了コード。spawnまたはLuaエラーで取得できない場合は`null`
 - `duration_ms`: 実行時間（ミリ秒）
 - `stderr`: 非対話型では取得した標準エラー、対話型では`null`
+- `error`: spawn、status待ち、またはLuaエラーなど、終了コードを取得できない理由。該当しない場合は`null`
 
-ログへ出す前に、コマンド、引数、cwd、stderrのすべてへ認証情報マスキングを適用する。パスワード、passwd／pwd、token、access token、refresh token、API key、secret、authorization／Bearer値、URLに埋め込まれたuserinfo（ユーザー名とパスワード）を`[REDACTED]`へ置換する。引数の`--token value`のような分離形式も対象とする。stdin、対話型コマンドのstdout／stderr、端末入力内容は取得または監査ログへ記録しない。
+ログへ出す前に、コマンド、引数、cwd、stderrのすべてへ認証情報マスキングを適用する。パスワード、passwd／pwd、token、access token、refresh token、API key、secret、authorization／Bearer／Basic値、URLに埋め込まれたuserinfo（ユーザー名とパスワード）を`[REDACTED]`へ置換する。キー名にtoken等を含む`GITHUB_TOKEN`のような形式と、引数の`--token value`のような分離形式も対象とする。stdin、対話型コマンドのstdout／stderr、端末入力内容は取得または監査ログへ記録しない。
 
 以前の`VCS_YAZI_TRACE=1`による`actions.lua`の未構造化操作トレースは廃止し、監査が必要なコマンド実行はこの設定へ統一する。GUIの`Runner.launch`は、コマンド完了を待たない既存の起動経路であるため、この監査レコードの対象外とする。
 
@@ -1810,6 +1811,8 @@ Issue #79 の追加受入条件：
 50. command、args、cwd、stderrのcredential-likeな値がログ出力前にマスクされ、stdin／interactive terminal contentが記録されない
 51. 旧`VCS_YAZI_TRACE=1`操作トレースが廃止され、すべてのVCS runner呼び出しが同じ監査経路を使用する
 52. credential masking、既定無効、run／interactiveの監査記録を単体テストし、Luaテストスイートと`luac -p`が成功する
+53. CLI Diff／Logのpager経路を含むすべての`Runner.interactive`呼び出しへ監査設定が渡される
+54. Basic認証、credential key名の派生形、複数の`@`を含むURL userinfoがマスクされ、spawn失敗・timeout・status/Luaエラーの理由が`error`へ記録される
 
 ---
 

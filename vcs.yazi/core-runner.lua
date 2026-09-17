@@ -23,7 +23,14 @@ local function normalized_credential_key(key)
 end
 
 local function is_credential_key(key)
-	return CREDENTIAL_KEYS[normalized_credential_key(key)] == true
+	local normalized = normalized_credential_key(key)
+	if CREDENTIAL_KEYS[normalized] == true then return true end
+	return normalized:find("token", 1, true) ~= nil
+		or normalized:find("secret", 1, true) ~= nil
+		or normalized:find("password", 1, true) ~= nil
+		or normalized:find("passwd", 1, true) ~= nil
+		or normalized:find("apikey", 1, true) ~= nil
+		or normalized:find("authorization", 1, true) ~= nil
 end
 
 --- Mask credential-like values in arbitrary text before it reaches a log.
@@ -32,13 +39,19 @@ end
 function M.mask_text(text)
 	text = tostring(text or "")
 	-- Remove URL userinfo as a unit, including both username and password.
-	text = text:gsub("([%a][%w+.-]*://)([^/%s@]+)@", "%1" .. REDACTED .. "@")
-	-- Bearer credentials do not necessarily have a key/value separator.
+	text = text:gsub("([%a][%w+.-]*://)([^/%s]+)@", "%1" .. REDACTED .. "@")
+	-- Authorization headers carry a scheme and a value in one token sequence.
+	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])(%s*:%s*)([Bb][Aa][Ss][Ii][Cc])(%s+)([^%s,;&]+)", function(key, separator, scheme, spaces)
+		return key .. separator .. scheme .. spaces .. REDACTED
+	end)
+	-- Bearer and Basic credentials do not necessarily have a key/value separator.
 	text = text:gsub("([Bb][Ee][Aa][Rr][Ee][Rr]%s+)([^%s,;]+)", "%1" .. REDACTED)
+	text = text:gsub("([Bb][Aa][Ss][Ii][Cc]%s+)([^%s,;]+)", "%1" .. REDACTED)
 	-- Cover query strings, environment-like assignments, and header-like text.
 	text = text:gsub("([%w_%-]+)(%s*[:=]%s*)([^%s,;&]+)", function(key, separator, value)
-		local bearer_marker = normalized_credential_key(key) == "authorization" and value:lower() == "bearer"
-		return is_credential_key(key) and not bearer_marker and key .. separator .. REDACTED or key .. separator .. value
+		local authorization_scheme = normalized_credential_key(key) == "authorization"
+			and (value:lower() == "bearer" or value:lower() == "basic")
+		return is_credential_key(key) and not authorization_scheme and key .. separator .. REDACTED or key .. separator .. value
 	end)
 	return text
 end
@@ -102,6 +115,7 @@ function M.audit_message(record)
 		"\"exit_code\":" .. exit_code,
 		"\"duration_ms\":" .. tostring(math.max(0, math.floor(duration_ms))),
 		"\"stderr\":" .. (record.stderr == nil and "null" or json_quote(M.mask_text(record.stderr))),
+		"\"error\":" .. (record.error == nil and "null" or json_quote(M.mask_text(record.error))),
 	}, ",") .. "}"
 end
 
@@ -191,7 +205,7 @@ local function audit_enabled(audit_config)
 	return type(audit_config) == "table" and audit_config.enabled == true
 end
 
-local function audit(spec, audit_config, status, started_at, stderr)
+local function audit(spec, audit_config, status, started_at, stderr, error)
 	if not audit_enabled(audit_config) or type(ya) ~= "table" or type(ya.dbg) ~= "function" then return end
 	local exit_code = status and status.code or nil
 	local duration_ms = now_ms() - started_at
@@ -202,6 +216,7 @@ local function audit(spec, audit_config, status, started_at, stderr)
 		exit_code = exit_code,
 		duration_ms = duration_ms,
 		stderr = stderr,
+		error = error,
 	}))
 end
 
@@ -239,7 +254,7 @@ function M.run(spec, timeout_ms, audit_config)
 
 	local child, spawn_err = command:spawn()
 	if not child then
-		audit(spec, audit_config, nil, started_at, spawn_err)
+		audit(spec, audit_config, nil, started_at, nil, spawn_err)
 		return nil, spawn_err
 	end
 
@@ -279,7 +294,7 @@ function M.run(spec, timeout_ms, audit_config)
 
 	local status, wait_err = child:wait()
 	if not status then
-		audit(spec, audit_config, nil, started_at, wait_err)
+		audit(spec, audit_config, nil, started_at, nil, wait_err)
 		return nil, wait_err
 	end
 	-- Never write into `status` itself: it's the `Status` userdata `Child:wait()`
@@ -321,10 +336,10 @@ function M.interactive(spec, audit_config)
 	end)
 	permit:drop()
 	if not ok then
-		audit(spec, audit_config, nil, started_at, status)
+		audit(spec, audit_config, nil, started_at, nil, status)
 		return nil, status
 	end
-	audit(spec, audit_config, status, started_at, nil)
+	audit(spec, audit_config, status, started_at, nil, err)
 	return status, err
 end
 

@@ -57,11 +57,11 @@ main.lua: M:fetch(job)
        -> cwdから親方向へ.git/.svnを検出（Detector）
           検出できない -> State.forget(cwd) を呼んだ上で Fetcher.noop(job) へ
        -> 表示中パスをroot-relativeへ変換し、重複排除した問い合わせリストを構築
-       -> backend.status_specをRunner.run(timeout_ms)で1回だけ実行
+       -> backend.status_specをRunner.run(timeout_ms, audit_config)で1回だけ実行
           失敗 -> Fetcher.error(job, err) へ（State更新は行わない）
        -> status解析、ディレクトリ集約、除外反映
        -> State.info_of(root)が空、またはinfo.refresh_msの期限を超えた場合に
-           info_specをRunner.run(timeout_ms)で取得。失敗時は既存metadataを保持
+           info_specをRunner.run(timeout_ms, audit_config)で取得。失敗時は既存metadataを保持
   3. State更新 (core-state.lua)
        -> State.remember (ya.sync) -> ui.render
   4. Fetcher result生成 (core-fetcher.lua)
@@ -131,7 +131,7 @@ GUIは`Runner.launch()`で`ya.emit("shell", { orphan = true })`を使い、終�
 
 ### 5.3 構造化監査ログ
 
-`runner.audit.enabled`は既定で無効である。`core-runner.lua`は有効時だけ、`command`、マスク済み`args`、マスク済み`cwd`、`exit_code`、`duration_ms`、マスク済み`stderr`をJSON形式の1行として`ya.dbg`へ渡す。マスキングはログ直前に行い、キー名付きのパスワード／token／secret／authorization値、分離されたcredential flagの次の引数、Bearer値、URL userinfoを`[REDACTED]`へ変換する。interactiveは端末をinheritするためstderrを収集せず`null`を記録し、stdin／端末内容も記録しない。
+`runner.audit.enabled`は既定で無効である。`core-runner.lua`は有効時だけ、`command`、マスク済み`args`、マスク済み`cwd`、`exit_code`、`duration_ms`、マスク済み`stderr`、およびspawn／status待ち／Luaエラー時の`error`をJSON形式の1行として`ya.dbg`へ渡す。マスキングはログ直前に行い、キー名にtoken／secret／password等を含む値、分離されたcredential flagの次の引数、Bearer／Basic値、URL userinfoを`[REDACTED]`へ変換する。interactiveは端末をinheritするためstderrを収集せず`null`を記録し、stdin／端末内容も記録しない。CLI Diff／Logのpagerも`cfg.runner.audit`を同じ経路へ渡す。
 
 既存の`VCS_YAZI_TRACE`操作トレースは削除する。`Runner.launch`は終了結果を持たないGUI orphan起動のため監査対象外とし、`run`／`interactive`へ渡るすべてのVCSコマンドを同一の監査経路へ集約する。
 
@@ -301,7 +301,7 @@ false, preventing a valid swipe-triggered VCS render from losing its matcher.
 
 The commit action keeps its existing scope resolver, typed confirmation, root
 lock, and post-operation refresh behavior. After confirmation it builds only
-the native VCS command arguments and invokes `Runner.interactive()` with the
+the native VCS command arguments and invokes `Runner.interactive(spec, audit_config)` with the
 repository root as `cwd`:
 
 ```text

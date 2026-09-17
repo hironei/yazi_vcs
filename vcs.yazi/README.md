@@ -13,11 +13,11 @@ Phase 4の操作:
 
 外部コマンドは`diff.git_external`／`diff.svn_external`／`log.git_external`／`log.svn_external`へ、`command`と`args`を配列で設定します。`{root}`、`{file}`、`{targets}`、`{revision}`を使用できます。`{targets}`は対象ごとに別引数へ展開されます。
 
-For troubleshooting, `runner.audit.enabled = true` enables structured command
-records through `ya.dbg` for non-interactive and interactive VCS commands. It
-is disabled by default. Credential-like values are masked before logging, and
-interactive terminal input/output is never recorded. The former
-`VCS_YAZI_TRACE=1` operation trace has been removed.
+トラブルシューティング時は、`runner.audit.enabled = true`で非対話型／対話型の
+VCSコマンドを`ya.dbg`へ構造化記録できます。既定では無効です。ログ出力前に
+credential-likeな値をマスクし、対話型コマンドの端末入力と継承された端末出力は
+記録しません。確認には`YAZI_LOG=debug`を設定してください。旧
+`VCS_YAZI_TRACE=1`による操作トレースは廃止されています。
 
 SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-wrapper.sh`](../examples/svn-difft-wrapper.sh)を参照してください。
 

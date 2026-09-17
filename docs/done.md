@@ -2,9 +2,9 @@
 
 ## 2026-09-17 — Structured command audit logging (Issue #79)
 
-- Added opt-in structured `ya.dbg` audit records for non-interactive and interactive VCS runner calls, including masked command, arguments, cwd, exit code, duration, and safely capturable stderr.
+- Added opt-in structured `ya.dbg` audit records for non-interactive and interactive VCS runner calls, including masked command, arguments, cwd, exit code, duration, safely capturable stderr, and failure reasons.
 - Removed the legacy `VCS_YAZI_TRACE=1` ad hoc operation trace and documented that interactive terminal input/output is never recorded.
-- Added credential masking and default-disabled configuration coverage. Windows Lua tests: 620 passed / 0 failed.
+- Added credential masking for Basic/Bearer auth, derived credential key names, and URL userinfo, plus pager and failure-path coverage.
 - Updated requirements §21.3, design, user manual, and plugin README documentation.
 - Issue: [#79](https://github.com/hironei/yazi_vcs/issues/79)
 
@@ -13,7 +13,7 @@
 - Hardened Git branch/ref input handling, tracked-directory safety, context metadata fallback, fetcher exception handling, and cached VCS metadata refresh.
 - Centralized temporary output handling on the async filesystem API, made temporary names non-predictable, bounded action notifications, and clarified staged-mode commit confirmation and configurable recursive discard confirmation.
 - Isolated Git integration tests from ambient `GIT_EDITOR`/`VISUAL`/`EDITOR` variables.
-- Reconciled requirements, design, user manual, TODO, and agent guidance with the current Linemode, native editor, keymap, backend, state, and automated-vs-live validation boundaries. Structured command audit logging remains deferred to Issue #79.
+- Reconciled requirements, design, user manual, TODO, and agent guidance with the current Linemode, native editor, keymap, backend, state, and automated-vs-live validation boundaries. Structured command audit logging is implemented in Issue #79.
 - Windows Lua tests after merge: 606 passed / 0 failed, including a run with all three editor environment variables set.
 - Issues: [#60](https://github.com/hironei/yazi_vcs/issues/60)〜[#75](https://github.com/hironei/yazi_vcs/issues/75)
 
