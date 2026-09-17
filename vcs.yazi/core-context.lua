@@ -2,9 +2,20 @@
 -- Capture one immutable-looking Yazi context snapshot per VCS operation.
 --
 -- `resolve_url` and `build_snapshot` are pure (no Yazi API calls) and are
--- exercised directly by the unit tests. `M.snapshot` is the Yazi-facing
--- `ya.sync` wrapper and is exercised only inside Yazi itself.
+-- exercised directly by the unit tests. Yazi-facing wrappers capture state
+-- synchronously, then complete missing metadata in their async callers.
 local M = {}
+
+local function field(value, key)
+	if value == nil then return nil end
+	local ok, result = pcall(function() return value[key] end)
+	if ok then return result end
+end
+
+local function directory_flag(entry)
+	local value = field(field(entry, "cha"), "is_dir")
+	if type(value) == "boolean" then return value end
+end
 
 --- Resolve one `pairs(tab.selected)` entry to its `Url`-like value.
 --- Yazi 26.8.15 changed this entry from a `Url` (26.5.6) to a `File`, which
@@ -53,33 +64,29 @@ end
 ---@return table snapshot { selected, cwd, info, search }
 function M.build_snapshot(selected_entries, current_files, cwd, search)
 	local selected, info = {}, {}
-	for _, entry in pairs(selected_entries) do
-		local path = M.resolve_url(entry)
-		selected[#selected + 1] = path
-		info[path] = false
-	end
 	for i = 1, #current_files do
 		local file = current_files[i]
-		local path = file and M.resolve_url(file.url)
-		if path then info[path] = file.cha and file.cha.is_dir or false end
+		local path = file and M.resolve_url(file)
+		if path then info[path] = directory_flag(file) end
+	end
+	for _, entry in pairs(selected_entries) do
+		local path = M.resolve_url(entry)
+		if path then
+			selected[#selected + 1] = path
+			local is_dir = directory_flag(entry)
+			if is_dir ~= nil then info[path] = is_dir end
+		end
 	end
 	return { selected = selected, cwd = cwd, info = info, search = search == true }
-end
-
-local function field(value, key)
-	if value == nil then return nil end
-	if type(value) == "table" then return value[key] end
-	local ok, result = pcall(function() return value[key] end)
-	return ok and result or nil
 end
 
 local function file_source(entry)
 	local path = M.resolve_url(entry)
 	if not path then return nil end
-	local cha = field(entry, "cha")
 	return {
 		path = path,
-		is_dir = field(cha, "is_dir") == true,
+		-- Preserve unknown until the async wrapper can inspect the filesystem.
+		is_dir = directory_flag(entry),
 		search = M.is_search(entry),
 	}
 end
@@ -134,13 +141,13 @@ function M.build_file_operation_context(selected_entries, hovered_entry, active_
 	}
 end
 
-M.snapshot = ya.sync(function()
+local capture_snapshot = ya.sync(function()
 	local tab = cx.active
 	local cwd = tab.current.cwd
 	return M.build_snapshot(tab.selected, tab.current.files, M.resolve_url(cwd), M.is_search(cwd))
 end)
 
-M.file_operation_snapshot = ya.sync(function()
+local capture_file_operation_snapshot = ya.sync(function()
 	local active = cx.active
 	return M.build_file_operation_context(
 		active.selected,
@@ -150,5 +157,32 @@ M.file_operation_snapshot = ya.sync(function()
 		cx.tabs.idx
 	)
 end)
+
+-- fs.cha is async-only. Capture plain paths/booleans in ya.sync first,
+-- then resolve incomplete metadata after returning to the async caller.
+local function directory_on_disk(path)
+	local ok, cha = pcall(function() return fs.cha(Url(path), true) end)
+	-- Preserve the previous non-directory fallback for vanished/unreadable
+	-- paths. File actions still perform their own existence check before use.
+	return ok and field(cha, "is_dir") == true
+end
+
+function M.snapshot()
+	local snapshot = capture_snapshot()
+	for _, path in ipairs(snapshot.selected) do
+		if snapshot.info[path] == nil then snapshot.info[path] = directory_on_disk(path) end
+	end
+	return snapshot
+end
+
+function M.file_operation_snapshot()
+	local snapshot = capture_file_operation_snapshot()
+	local function complete(source)
+		if source and source.is_dir == nil then source.is_dir = directory_on_disk(source.path) end
+	end
+	for _, source in ipairs(snapshot.selected) do complete(source) end
+	complete(snapshot.hovered)
+	return snapshot
+end
 
 return M
