@@ -2137,3 +2137,36 @@ Acceptance criteria:
    and status output without committing.
 5. Existing tests and prescribed syntax checks remain green. Live Yazi UI
    confirmation is recorded separately from automated evidence.
+
+## Issue #82 Addendum: Readable Unicode SVN URL Copy
+
+Subversion may return the working-copy root URL with UTF-8 path bytes
+percent-encoded. When `plugin vcs -- copy-url` or
+`plugin vcs -- copy-url-revision` builds the target URL, the user-facing SVN
+value must decode those encoded UTF-8 bytes so Japanese and other non-ASCII
+repository-root path components remain readable in the clipboard. The local
+root-relative target path is already a filesystem path and must be appended
+unchanged. The status-bar SVN target URL must use the same representation as
+the copy actions.
+
+Only SVN URL output is in scope. Git's existing `branch/root-relative-path`
+identifier is not a URL and must remain unchanged. The conversion must not
+translate `+` to a space, must preserve URL delimiters such as `?`, `#`, and
+`/` when they are percent-encoded, and must leave malformed or incomplete
+percent escapes unchanged. Already-readable Unicode and ordinary ASCII URL
+text must remain unchanged.
+
+Acceptance criteria:
+
+1. A percent-encoded UTF-8 component in the SVN working-copy root URL, such as
+   `%E6%97%A5%E6%9C%AC`, is copied as readable `日本` in both URL actions.
+2. Raw Unicode, spaces, plus signs, percent signs, and URL delimiters in the
+   local relative target path retain their existing path meaning; encoded URL
+   delimiters in the root URL are not converted into URL syntax.
+3. The status bar and clipboard actions use the same decoded SVN target URL.
+4. Git copy output, already-readable Unicode, malformed escapes, and revision
+   suffixes remain compatible.
+5. Pure formatter tests and action-level clipboard tests cover normal,
+   boundary, malformed, local-percent, and revision cases; the complete Lua
+   suite and syntax check pass. Live Yazi/clipboard verification remains a
+   separate acceptance boundary.

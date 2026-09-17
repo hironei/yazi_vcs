@@ -1,5 +1,15 @@
 # 完了記録
 
+## 2026-09-17 — Readable Unicode SVN URL copy (Issue #82)
+
+- Decode valid percent-encoded UTF-8 in the SVN repository-root URL used by the
+  clipboard actions and status bar; append local relative paths unchanged.
+- Preserve encoded ASCII URL delimiters, malformed escapes, and Git's existing
+  `branch/root-relative-path` output.
+- Added pure URL-formatting and clipboard-action regression coverage.
+  Automated Lua and live Yazi / system clipboard acceptance remain separate.
+- Issue: [#82](https://github.com/hironei/yazi_vcs/issues/82)
+
 ## 2026-09-17 — Structured command audit logging (Issue #79)
 
 - Added opt-in structured `ya.dbg` audit records for non-interactive and interactive VCS runner calls, including masked command, arguments, cwd, exit code, duration, safely capturable stderr, and failure reasons.

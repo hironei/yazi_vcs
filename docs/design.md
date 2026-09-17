@@ -456,3 +456,29 @@ refresh behavior are covered by unit/action tests. Git and SVN integration
 tests cover file and directory scheduling/removal, literal path arguments,
 and special names. Live Yazi confirmation and native SVN/Git installation
 behavior remain separate manual acceptance boundaries.
+
+## Issue #82 Design: Readable Unicode SVN URL Copy
+
+Keep URL presentation in `core-vcs-info.lua`, the existing pure module that
+constructs SVN target URLs for both the status bar and `actions.lua`. Add a
+small percent-decoder that converts only percent-encoded UTF-8 bytes belonging
+to non-reserved text in the SVN metadata root URL. It must leave encoded URL
+delimiters (`/`, `?`, `#`), `+`, malformed escapes, and ordinary text unchanged.
+The local root-relative path is already a filesystem path and must not be
+decoded; this prevents a literal filename such as `%E6%97%A5.txt` from becoming
+a different target.
+
+`svn_target_url()` decodes the trimmed root URL, then constructs the URL with
+the unchanged root-relative path. No command arguments, filesystem paths,
+repository metadata, Git target format, or revision query changes.
+`copy-url-revision` continues to append `@revision` after target URL
+presentation, preserving the existing revision semantics.
+
+Unit tests in `test-core-vcs-info.lua` cover encoded UTF-8, mixed path text,
+reserved delimiters, plus signs, malformed escapes, already-readable Unicode,
+and the unchanged Git target helper. `test-copy-actions.lua` additionally
+exercises both clipboard actions, including the revision query and suffix.
+Because the conversion is pure and shared, the status-bar and clipboard paths
+cannot drift.
+Live Yazi rendering and system clipboard behavior remain manual checks and are
+not claimed by the Lua suite.
