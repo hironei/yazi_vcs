@@ -25,18 +25,12 @@ local current_hovered_url = ya.sync(function()
 	return hovered and hovered.url, hovered and hovered.cha and hovered.cha.is_dir == true
 end)
 
-local function trace(stage)
-	if os.getenv("VCS_YAZI_TRACE") == "1" and type(ya.err) == "function" then
-		ya.err("vcs trace: " .. stage)
-	end
-end
-
 local function resolve_scope(cfg)
 	return Scope.resolve_or_notify(cfg)
 end
 
 local function run(root, command, args, cfg)
-	return Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
+	return Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 end
 
 local function versioned_path(kind, root, path, cfg)
@@ -157,7 +151,7 @@ local function convert_external_path(path, style, environment, root, cfg)
 	if style ~= "windows" or (environment ~= "wsl" and environment ~= "git-bash") then return path end
 	local converter = External.converter(environment)
 	if not converter then return path end
-	local output, err = Runner.run({ command = converter, args = { "-w", "--", path }, cwd = root }, cfg.runner.timeout_ms)
+	local output, err = Runner.run({ command = converter, args = { "-w", "--", path }, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 	if output and output.status.success then
 		local converted = tostring(output.stdout):gsub("%s+$", "")
 		if converted ~= "" then return converted end
@@ -191,22 +185,20 @@ local function run_external(root, operation, spec, absolute, cfg, repository_sco
 	local context = external_context(root, absolute, cfg, spec, repository_scope)
 	local args, expand_err = External.expand_args(spec.args, context)
 	if not args then return Notify.error("%s configuration is invalid: %s", operation, expand_err) end
-	trace("external: " .. operation .. " command=" .. tostring(spec.command) .. " cwd=" .. tostring(root) .. " args=" .. table.concat(args, " | "))
 	local command = { command = spec.command, args = args, cwd = root }
 	if spec.interactive == false then
 		local launched, launch_err = Runner.launch(command)
-		trace("external:orphan-launch=" .. tostring(launched) .. " error=" .. tostring(launch_err))
 		if not launched then return failure(operation, nil, launch_err) end
 		return Notify.info("%s launched.", operation)
 	end
-	local status, err = Runner.interactive(command)
+	local status, err = Runner.interactive(command, cfg.runner.audit)
 	if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
 	Notify.info("%s completed.", operation)
 end
 
 local function has_diff(root, kind, paths, cfg)
 	local args = kind == "git" and Commands.git_diff(paths) or Commands.svn_diff(paths)
-	local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+	local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 	if not output or not output.status.success then return nil, output, err end
 	return Runner.summary(output.stdout, 1) ~= "", output, nil
 end
@@ -215,7 +207,8 @@ local function query_changed(root, kind, cfg)
 	local backend = kind == "git" and GitBackend or SvnBackend
 	local output, err = Runner.run(
 		backend.status_spec(root, nil, { ignore_externals = cfg.status.ignore_externals }),
-		cfg.runner.timeout_ms
+		cfg.runner.timeout_ms,
+		cfg.runner.audit
 	)
 	if not output or not output.status.success then return nil, output, err end
 	local changed = backend.parse_status_output(output.stdout)
@@ -299,7 +292,7 @@ function M.update()
 		local fallback = kind == "git" and Commands.git_update() or Commands.svn_update(nil)
 		local command, args = argv(cfg.update and cfg.update[kind], kind, fallback)
 		local operation = kind:gsub("^%l", string.upper) .. " update"
-		local status, err = Runner.interactive({ command = command, args = args, cwd = root })
+		local status, err = Runner.interactive({ command = command, args = args, cwd = root }, cfg.runner.audit)
 		if not status or not status.success then return failure(operation, status and { status = status } or nil, err) end
 		finish_interactive(root, operation)
 	end)
@@ -363,7 +356,7 @@ function M.commit()
 		if event ~= 1 or value ~= "commit" then return Notify.info("Commit cancelled.") end
 		local operation = kind:gsub("^%l", string.upper) .. " commit"
 		local args = kind == "git" and Commands.git_commit(paths, mode) or Commands.svn_commit(paths)
-		local status, err = Runner.interactive({ command = kind, args = args, cwd = root })
+		local status, err = Runner.interactive({ command = kind, args = args, cwd = root }, cfg.runner.audit)
 		if not status or not status.success then
 			-- Native commit may update the index before the editor is cancelled.
 			-- Clear the cached state and fetch again so Yazi reflects that result.
@@ -440,7 +433,7 @@ local function view_operation(operation, config_section, kind_builder, external)
 		else
 			command, args = kind, fallback
 		end
-		local output, err = Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
+		local output, err = Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 		if not output or not output.status.success then return failure(operation, output, err) end
 		if Runner.summary(output.stdout, 1) == "" then return Notify.info("No output from %s.", operation) end
 		display_output(operation, output.stdout, cfg)
@@ -482,7 +475,7 @@ function M.log_preview()
 			lines[#lines + 1] = LogPreview.message(nil, "untracked")
 		else
 			local args = LogPreview.args(kind, relative)
-			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 			if not output or not output.status.success then
 				local detail = Runner.error_text(output, err):gsub("[\r\n]+", " ")
 				lines[#lines + 1] = LogPreview.message(kind, "command-failed", detail)
@@ -573,11 +566,9 @@ function M.discard()
 	local scope = resolve_scope(cfg)
 	if not scope then return end
 	local kind, root = scope.kind, scope.root
-	trace("discard:start kind=" .. kind .. " root=" .. tostring(root))
 	with_lock(root, "Discard", function()
 		local paths, info, absolute = scope.paths, scope.info, scope.absolute
 		if not paths then return end
-		trace("discard:targets=" .. table.concat(paths, " | "))
 		local abs_by_rel = {}
 		for i, path in ipairs(paths) do abs_by_rel[path] = absolute[i] end
 		local statuses = {}
@@ -593,7 +584,6 @@ function M.discard()
 			end
 		end
 		local kept, excluded = Targets.exclude_untracked(paths, statuses, versioned)
-		trace("discard:kept=" .. table.concat(kept, " | ") .. " excluded=" .. table.concat(excluded, " | "))
 		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
 		local recursive = false
@@ -619,9 +609,7 @@ function M.discard()
 			if event ~= 1 or value ~= "discard" then return Notify.info("Discard cancelled.") end
 		end
 		local fallback = kind == "git" and Commands.git_discard(kept) or Commands.svn_discard(kept, recursive)
-		trace("discard:run command=" .. kind .. " args=" .. table.concat(fallback, " | "))
 		local output, err = run(root, kind, fallback, cfg)
-		trace("discard:run-result=" .. tostring(output and output.status and output.status.success) .. " error=" .. tostring(err))
 		local operation = kind:gsub("^%l", string.upper) .. " discard"
 		if not output or not output.status.success then return failure(operation, output, err) end
 		finish(root, operation, output)
@@ -658,9 +646,9 @@ local function copy_action(with_revision)
 	if with_revision then
 		local output, err
 		if kind == "svn" then
-			output, err = Runner.run(SvnBackend.revision_spec(root, relpath), cfg.runner.timeout_ms)
+			output, err = Runner.run(SvnBackend.revision_spec(root, relpath), cfg.runner.timeout_ms, cfg.runner.audit)
 		else
-			output, err = Runner.run(GitBackend.revision_spec(root), cfg.runner.timeout_ms)
+			output, err = Runner.run(GitBackend.revision_spec(root), cfg.runner.timeout_ms, cfg.runner.audit)
 		end
 		if not output or not output.status.success then
 			return Notify.error("Copy URL with revision failed: %s", Runner.summary(Runner.error_text(output, err), 240))

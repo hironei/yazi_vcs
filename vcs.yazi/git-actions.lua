@@ -21,7 +21,7 @@ local function root_for_git(cfg)
 end
 
 local function run(root, args, cfg)
-	return Runner.run({ command = "git", args = args, cwd = root }, cfg.runner.timeout_ms)
+	return Runner.run({ command = "git", args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 end
 
 local function fail(operation, output, err)
@@ -118,7 +118,7 @@ function M.push()
 
 		-- Push may request credentials, so it deliberately bypasses the timeout
 		-- runner and inherits the terminal while Yazi is hidden.
-		local status, err = Runner.interactive({ command = "git", args = args, cwd = root })
+		local status, err = Runner.interactive({ command = "git", args = args, cwd = root }, cfg.runner.audit)
 		if not status or not status.success then
 			return fail("Git push", status and { status = status, stderr = "" } or nil, err)
 		end

@@ -22,7 +22,7 @@ function M.query(kind, root, pathname, cfg)
 		return nil, "unsupported VCS kind: " .. tostring(kind)
 	end
 
-	local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+	local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 	if not output then return nil, err or (kind .. " path query failed") end
 	if output.timed_out then return nil, Runner.error_text(output, err) end
 	if not output.status.success then

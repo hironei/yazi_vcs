@@ -33,4 +33,40 @@ return function(t)
 		_G.fs, _G.Url = old_fs, old_url
 		if not ok then error(err, 0) end
 	end
+
+	do
+		local old_fs, old_url = _G.fs, _G.Url
+		local calls = {}
+		_G.Url = function(path) return path end
+		_G.fs = {
+			unique = function(_, requested) return requested .. "-reserved" end,
+			write = function() return true end,
+			remove = function(_, path) calls.removed = path; return true end,
+		}
+		local runner = {
+			interactive = function(spec, audit_config)
+				calls.spec = spec
+				calls.audit = audit_config
+				return { success = true, code = 0 }
+			end,
+		}
+		local ok, err = pcall(function()
+			local shown = temp.display(
+				"diff output",
+				{
+					pager = { command = "less", args = {} },
+					editor = { command = "nvim", args = {} },
+					runner = { audit = { enabled = true } },
+				},
+				runner
+			)
+			t.truthy(shown, "temporary display succeeds")
+			t.eq(calls.spec.command, "less", "temporary display uses the configured pager")
+			t.truthy(calls.spec.args[1]:match("vcs%-output"), "temporary display passes its output file")
+			t.truthy(calls.audit.enabled, "temporary display passes runner audit configuration")
+			t.truthy(calls.removed, "temporary display removes the output file")
+		end)
+		_G.fs, _G.Url = old_fs, old_url
+		if not ok then error(err, 0) end
+	end
 end

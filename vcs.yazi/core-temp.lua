@@ -62,7 +62,8 @@ function M.display(content, cfg, runner)
 	local args = {}
 	for _, value in ipairs(viewer.args or {}) do args[#args + 1] = value end
 	args[#args + 1] = written_path
-	local status, command_err = runner.interactive({ command = viewer.command, args = args })
+	local audit_config = cfg.runner and cfg.runner.audit
+	local status, command_err = runner.interactive({ command = viewer.command, args = args }, audit_config)
 	local removed, remove_err = M.remove(written_path)
 	if not status then return nil, command_err end
 	if not status.success then return nil, "viewer exited with code " .. tostring(status.code or "unknown") end

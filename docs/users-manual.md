@@ -101,6 +101,7 @@ require("vcs"):setup()
 | `editor.command` | `"nvim"` | CLI Diff／Log表示のfallbackに使うコマンド。CommitはGit／SVNのeditor設定を使用 |
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
+| `runner.audit.enabled` | `false` | `core-runner.lua`の構造化コマンド監査ログを有効化。既定では無効 |
 | `path.external_style` | `"auto"` | 外部コマンドへ渡すパス形式の自動判定 |
 
 より細かく変更する場合は、`init.lua`の`setup`へ次の設定キーを指定します。`update`、`diff.*_cli`、`log.*_cli`の配列は先頭に実行コマンドを含めます。外部コマンドだけは`command`と`args`を分けて指定します。
@@ -137,6 +138,31 @@ require("vcs"):setup({
 ### 5. Yaziを再起動する
 
 設定ファイルを保存したらYaziをいったん終了して再起動します。GitリポジトリまたはSVN working copy内で、ファイル名の前に状態記号とstatus barのリポジトリ位置が表示されればstatus表示のセットアップは完了です。
+
+### 構造化コマンド監査ログ
+
+トラブルシューティング時は、構造化コマンド監査ログを明示的に有効化できます。
+
+```lua
+-- <YAZI_CONFIG_HOME>/init.lua
+require("vcs"):setup({
+  runner = {
+    audit = { enabled = true },
+  },
+})
+```
+
+有効にすると、プラグインの非対話型`Runner.run`および対話型
+`Runner.interactive`を通る各コマンドについて、command、引数、working
+directory、終了コード、実行時間（ミリ秒）、安全に取得できるstderrを含む
+構造化`ya.dbg`レコードを1件出力します。パスワード、token、secret、
+authorizationヘッダーの方式を問わない認証値、分離されたcredential flagの値、URL
+userinfoなどのcredential-likeな値は`[REDACTED]`へ置換されます。
+`YAZI_LOG=debug`を設定したYaziのデバッグログで確認してください。
+対話型コマンドの端末入力と継承された端末出力は記録せず、対話型レコードの
+`stderr`は`null`になります。timeoutやspawn／status／Luaエラーの理由は
+`error`へ記録されます。既定では無効です。旧`VCS_YAZI_TRACE=1`による
+未構造化の操作トレースは廃止されています。
 
 ## キー割り当て
 

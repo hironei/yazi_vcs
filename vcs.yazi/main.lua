@@ -31,12 +31,12 @@ end
 local function fetch_vcs_info(kind, root, cfg)
 	local backend = BACKENDS[kind]
 	if kind == "git" then
-		local output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms)
+		local output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms, cfg.runner.audit)
 		if output and output.status.success then
 			return { kind = kind, data = backend.parse_info(output.stdout) }
 		end
 	elseif kind == "svn" then
-		local url_output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms)
+		local url_output = Runner.run(backend.info_spec(root), cfg.runner.timeout_ms, cfg.runner.audit)
 		if url_output and url_output.status.success then
 			return { kind = kind, data = backend.parse_info(url_output.stdout) }
 		end
@@ -103,7 +103,7 @@ local function refresh_vcs_status(job)
 		end
 	end
 	local backend = BACKENDS[kind]
-	local output, err = Runner.run(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }), cfg.runner.timeout_ms)
+	local output, err = Runner.run(backend.status_spec(root_str, queried, { ignore_externals = cfg.status.ignore_externals }), cfg.runner.timeout_ms, cfg.runner.audit)
 	if not output then
 		return "error", string.format("Cannot run `%s status`: %s", kind, tostring(err))
 	end
@@ -187,7 +187,7 @@ function M:spot(job)
 			fallback = LogPreview.message(nil, "untracked")
 		else
 			local args = LogPreview.args(kind, relative)
-			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+			local output, err = Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 			if not output or not output.status.success then
 				local detail = Runner.error_text(output, err):gsub("[\r\n]+", " ")
 				fallback = LogPreview.message(kind, "command-failed", detail)
