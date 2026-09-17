@@ -4,7 +4,6 @@
 -- directory and a process-local unique suffix instead.
 local M = {}
 local counter = 0
-local random_seeded = false
 local is_windows = package.config:sub(1, 1) == "\\"
 
 local function temp_root()
@@ -30,10 +29,6 @@ function M.path(prefix, extension)
 	extension = extension or ".tmp"
 	counter = counter + 1
 	local clock = math.floor((os.clock() % 1) * 1000000)
-	if not random_seeded then
-		math.randomseed(os.time() + clock)
-		random_seeded = true
-	end
 	local random = math.random(0, 0x7fffffff)
 	return string.format("%s%s%s-%08x-%08x-%d%s", root, is_windows and "\\" or "/", prefix, clock, random, counter, extension)
 end

@@ -33,13 +33,6 @@ function M.capture_in_dir(dir, command)
 	return io.popen(cd .. M.shell_quote(dir) .. " && " .. command)
 end
 
-function M.clean_editor_env(command)
-	if M.is_windows then
-		return "set GIT_EDITOR=&& set VISUAL=&& set EDITOR=&& " .. command
-	end
-	return "env -u GIT_EDITOR -u VISUAL -u EDITOR " .. command
-end
-
 function M.temp_dir()
 	local dir, err = Temp.path("vcs-test-dir", "")
 	assert(dir, err)
