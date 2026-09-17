@@ -1340,6 +1340,9 @@ require("vcs"):setup({
 
     runner = {
         timeout_ms = 30000,             -- §21.1 参照。0で無効
+        audit = {
+            enabled = false,            -- §21.3 参照。既定で無効
+        },
     },
 
     git = {
@@ -1366,6 +1369,7 @@ require("vcs"):setup({
 - `commit.auto_stage_git`を`commit.git_mode`へ置換（§11.2）
 - `log.git_cli_all`を追加（§13.2）
 - `runner.timeout_ms`を追加（§21.1）
+- `runner.audit.enabled`を追加（§21.3。既定で無効）
 - 配列型の設定値は深いマージではなく、ユーザー指定値で全体を置換する
 - `commit.default_scope`、`editor.wait`、`commit.allow_empty_message`、`discard.confirm`、`discard.include_untracked`、force／stash系の設定は安全要件または未実装のため削除
 
@@ -1419,16 +1423,20 @@ permit:drop()
 
 ### 21.3 ログ
 
-構造化されたコマンド監査ログ（コマンド、引数、cwd、終了コード、実行時間、stderrのマスキング）は現行スコープでは未実装とし、Issue #79へ延期する。現行実装の`VCS_YAZI_TRACE=1`は限定的な操作トレースに留め、認証情報を意図的に出力しない。
+構造化コマンド監査ログは`runner.audit.enabled`でopt-inにする。既定値は`false`であり、無効時は監査ログを生成しない。これはデバッグ用途の設定であり、ユーザーの通常のYaziログ出力を増やさない。
 
-- 実行コマンド
-- 引数
-- working directory
-- 終了コード
-- 実行時間
-- 標準エラー
+有効時、`core-runner.lua`の`Runner.run`（非対話型）および`Runner.interactive`（対話型）は、各呼び出しの完了時に`ya.dbg`へ次のフィールドを1レコードで出力する。
 
-認証情報、トークン、パスワードはログに出力しない。構造化stderrのマスキングはIssue #79で設計・実装する。
+- `command`: 実行コマンド
+- `args`: 引数配列
+- `cwd`: working directory
+- `exit_code`: 終了コード。spawnまたはLuaエラーで取得できない場合は`null`
+- `duration_ms`: 実行時間（ミリ秒）
+- `stderr`: 非対話型では取得した標準エラー、対話型では`null`
+
+ログへ出す前に、コマンド、引数、cwd、stderrのすべてへ認証情報マスキングを適用する。パスワード、passwd／pwd、token、access token、refresh token、API key、secret、authorization／Bearer値、URLに埋め込まれたuserinfo（ユーザー名とパスワード）を`[REDACTED]`へ置換する。引数の`--token value`のような分離形式も対象とする。stdin、対話型コマンドのstdout／stderr、端末入力内容は取得または監査ログへ記録しない。
+
+以前の`VCS_YAZI_TRACE=1`による`actions.lua`の未構造化操作トレースは廃止し、監査が必要なコマンド実行はこの設定へ統一する。GUIの`Runner.launch`は、コマンド完了を待たない既存の起動経路であるため、この監査レコードの対象外とする。
 
 ---
 
@@ -1794,6 +1802,14 @@ Issue #38 の追加受入条件：
 45. 既存テストがすべて通る
 46. 新しいfetcher互換レイヤの単体テストが追加されている
 47. READMEの対応Yaziバージョンが26.8.15以降へ更新されている
+
+Issue #79 の追加受入条件：
+
+48. `runner.audit.enabled`の既定値が`false`で、無効時に監査出力が生成されない
+49. 有効時に、非対話型／対話型の各`core-runner.lua`実行がcommand、args、cwd、exit code、duration、stderrフィールドを持つ`ya.dbg`レコードを出力する
+50. command、args、cwd、stderrのcredential-likeな値がログ出力前にマスクされ、stdin／interactive terminal contentが記録されない
+51. 旧`VCS_YAZI_TRACE=1`操作トレースが廃止され、すべてのVCS runner呼び出しが同じ監査経路を使用する
+52. credential masking、既定無効、run／interactiveの監査記録を単体テストし、Luaテストスイートと`luac -p`が成功する
 
 ---
 

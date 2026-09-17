@@ -33,7 +33,7 @@ M.defaults = {
 	},
 	path = { external_style = "auto" },
 	discard = { recursive_confirm_text = "revert" },
-	runner = { timeout_ms = 30000 },
+	runner = { timeout_ms = 30000, audit = { enabled = false } },
 	git = {
 		-- Force Push, Force Delete, auto-stash, and forced Switch are
 		-- mandatory-safety exclusions (requirements.md §25), not

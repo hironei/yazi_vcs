@@ -32,7 +32,7 @@
 - [ ] [#38](https://github.com/hironei/yazi_vcs/issues/38) — Yazi 26.8.15対応: fetcher API更新とYazi依存の互換レイヤ分離（`core-fetcher.lua`新設、`main.lua`のfetcher契約更新、`core-context.lua`のFile／Url対応、対応Yaziバージョンを26.8.15以降へ更新。自動テストは通過済みだが、下記「目視確認」のWindows + Yazi 26.8.15実機確認が未了のためissueは未クローズ）
 - [ ] [#42](https://github.com/hironei/yazi_vcs/issues/42) — VCS Changes View（Git/SVN変更一覧、Search View選択、Diff／Log／Add／Commit／Discard連携）を実装。自動テスト済み、実Yazi UIとWindows/Git Bashの手動確認待ち。
 - [x] [#58](https://github.com/hironei/yazi_vcs/issues/58) — Add VCS-aware file and directory delete for Git and SVN; automated coverage is complete, with live Yazi confirmation remaining a manual boundary.
-- [ ] [#79](https://github.com/hironei/yazi_vcs/issues/79) — 構造化コマンド監査ログ（opt-in、`core-runner.lua`の実行記録、認証情報マスキング）。#73から延期。
+- [x] [#79](https://github.com/hironei/yazi_vcs/issues/79) — 構造化コマンド監査ログ（opt-in、`core-runner.lua`の実行記録、認証情報マスキング）。
 
 ## Review findings #60-#75（2026-09-17）
 

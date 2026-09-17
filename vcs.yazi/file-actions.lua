@@ -18,7 +18,7 @@ local function display_path(path)
 end
 
 local function run(kind, root, args, cfg)
-	return Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+	return Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms, cfg.runner.audit)
 end
 
 local function versioned_path(kind, root, path, cfg)

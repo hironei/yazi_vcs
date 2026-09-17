@@ -1,5 +1,13 @@
 # 完了記録
 
+## 2026-09-17 — Structured command audit logging (Issue #79)
+
+- Added opt-in structured `ya.dbg` audit records for non-interactive and interactive VCS runner calls, including masked command, arguments, cwd, exit code, duration, and safely capturable stderr.
+- Removed the legacy `VCS_YAZI_TRACE=1` ad hoc operation trace and documented that interactive terminal input/output is never recorded.
+- Added credential masking and default-disabled configuration coverage. Windows Lua tests: 620 passed / 0 failed.
+- Updated requirements §21.3, design, user manual, and plugin README documentation.
+- Issue: [#79](https://github.com/hironei/yazi_vcs/issues/79)
+
 ## 2026-09-17 — Issue review #60〜#75
 
 - Hardened Git branch/ref input handling, tracked-directory safety, context metadata fallback, fetcher exception handling, and cached VCS metadata refresh.

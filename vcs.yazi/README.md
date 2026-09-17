@@ -13,6 +13,12 @@ Phase 4の操作:
 
 外部コマンドは`diff.git_external`／`diff.svn_external`／`log.git_external`／`log.svn_external`へ、`command`と`args`を配列で設定します。`{root}`、`{file}`、`{targets}`、`{revision}`を使用できます。`{targets}`は対象ごとに別引数へ展開されます。
 
+For troubleshooting, `runner.audit.enabled = true` enables structured command
+records through `ya.dbg` for non-interactive and interactive VCS commands. It
+is disabled by default. Credential-like values are masked before logging, and
+interactive terminal input/output is never recorded. The former
+`VCS_YAZI_TRACE=1` operation trace has been removed.
+
 SVNの`--diff-cmd`へdifftastic等を接続する例は[`../examples/svn-difft-wrapper.sh`](../examples/svn-difft-wrapper.sh)を参照してください。
 
 VCS操作の対象は、selectedがあればselected、なければcwdです。hoveredだけでは対象を変更しません。cwdがVCS外でも、VCSリポジトリのディレクトリをselectedすればそのリポジトリを操作できます。異なるリポジトリを複数selectedした操作は拒否します。未selectedのAdd／Commit／Discardはcwd配下を広く対象にし得るため、対象範囲を表示してtyped confirmationを要求します。既存のPush・Branch・Switchの安全方針、CLI操作の失敗通知、成功後refreshも維持します。実Yazi UI、Windows GUI、WSL／Git Bash、SVN実CLIは手動確認が必要です。

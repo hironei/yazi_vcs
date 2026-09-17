@@ -1,5 +1,6 @@
 return function(t)
 	local config = require("config")
+	t.falsy(config.defaults.runner.audit.enabled, "audit logging is disabled by default")
 
 	local merged = config.deep_merge(config.defaults, {
 		status = {
@@ -15,6 +16,9 @@ return function(t)
 	t.eq(merged.path.external_style, "windows", "external path style override is merged")
 	t.eq(merged.diff.git_external.command, "git", "external diff configuration is merged")
 	t.eq(merged.log.git_external, nil, "unspecified external log remains disabled")
+
+	local audited = config.deep_merge(config.defaults, { runner = { audit = { enabled = true } } })
+	t.truthy(audited.runner.audit.enabled, "audit logging can be enabled explicitly")
 
 	local replaced = config.deep_merge(config.defaults, {
 		update = { git = { "git", "fetch" } },

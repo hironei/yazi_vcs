@@ -14,7 +14,7 @@
 - `core-context.lua`: VCS操作開始時のselected／cwd／file metadata snapshot。Yazi 26.8.15で`tab.selected`の`pairs()`要素が`Url`から`File`へ変わるため、`.url`フィールドの有無で分岐する軽量なduck-typingで両形式を吸収する（§2、要件§7.3）
 - `core-scope.lua`: context snapshotからの共通scope解決と失敗通知
 - `core-detector.lua` / `core-targets.lua` / `core-path.lua`: root検出、scope解決、対象選択、境界検証、パス変換
-- `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、GUI orphan起動。Issue #38では変更しない（要件§8.7.2）
+- `core-runner.lua`: 非対話CLIのタイムアウト付き実行、対話実行、構造化監査ログ、GUI orphan起動
 - `core-state.lua`: `ya.sync`越しのroot別status/info、metadata再取得時刻、操作ロック
 - `core-status.lua`: 状態優先度、ディレクトリ集約、ignored伝播
 - `core-versioned-path.lua`: 集約statusが`untracked`でも実際にGit／SVN管理下のpathかを`git ls-files --cached`／`svn info --show-item kind`で判定
@@ -119,15 +119,21 @@ return M
 
 ### 5.1 非対話型
 
-`Runner.run(spec, timeout_ms)`は`Command:spawn()`、PIPED stdout/stderr、`Child:read_line_with`で実装する。`timeout_ms > 0`ではdeadlineまで読み取り、期限到達時に`start_kill()`して`timed_out`結果を返す。`timeout_ms = 0`は無期限設定だが、API上のpollには有限の60秒窓を使い、event=3だけではkillしない。
+`Runner.run(spec, timeout_ms, audit_config)`は`Command:spawn()`、PIPED stdout/stderr、`Child:read_line_with`で実装する。`timeout_ms > 0`ではdeadlineまで読み取り、期限到達時に`start_kill()`して`timed_out`結果を返す。`timeout_ms = 0`は無期限設定だが、API上のpollには有限の60秒窓を使い、event=3だけではkillしない。完了、spawn失敗、wait失敗の各経路では、`audit_config.enabled`が真の場合にマスク済みの監査レコードを`ya.dbg`へ出力する。
 
 Status、VCS info、revision、差分確認、CLI Diff/Log、Branch検証・一覧、パス変換はこの経路を使う。stdinは`Command.NULL`で、認証入力待ちを非対話タスクへ持ち込まない。`timeout_ms = 0`はタイムアウトを無効にする。
 
 ### 5.2 対話型とGUI
 
-Update、ネイティブCommit、pager、TUI外部ツール、Pushは`Runner.interactive()`を使う。`ui.hide()`取得後、command構築・status待ちを`pcall`で保護し、処理結果にかかわらずpermitをdropする。Update、Commit、Pushは認証またはeditor入力のためstdin/stdout/stderrを`Command.INHERIT`にする。
+Update、ネイティブCommit、pager、TUI外部ツール、Pushは`Runner.interactive(spec, audit_config)`を使う。`ui.hide()`取得後、command構築・status待ちを`pcall`で保護し、処理結果にかかわらずpermitをdropする。Update、Commit、Pushは認証またはeditor入力のためstdin/stdout/stderrを`Command.INHERIT`にする。監査が有効でもinteractiveの標準入出力と端末内容は取得せず、監査レコードの`stderr`は`null`とする。
 
 GUIは`Runner.launch()`で`ya.emit("shell", { orphan = true })`を使い、終了を待たない。外部設定はcommandと引数配列を分離し、shell文字列の組み立てはGUI起動の引用処理以外で行わない。
+
+### 5.3 構造化監査ログ
+
+`runner.audit.enabled`は既定で無効である。`core-runner.lua`は有効時だけ、`command`、マスク済み`args`、マスク済み`cwd`、`exit_code`、`duration_ms`、マスク済み`stderr`をJSON形式の1行として`ya.dbg`へ渡す。マスキングはログ直前に行い、キー名付きのパスワード／token／secret／authorization値、分離されたcredential flagの次の引数、Bearer値、URL userinfoを`[REDACTED]`へ変換する。interactiveは端末をinheritするためstderrを収集せず`null`を記録し、stdin／端末内容も記録しない。
+
+既存の`VCS_YAZI_TRACE`操作トレースは削除する。`Runner.launch`は終了結果を持たないGUI orphan起動のため監査対象外とし、`run`／`interactive`へ渡るすべてのVCSコマンドを同一の監査経路へ集約する。
 
 ## 6. 操作ロックと回復
 
@@ -148,7 +154,7 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 - VCS root外の対象を拒否する
 - CLI引数は配列で渡し、ユーザー入力Branch名は事前検証する
 - Force Push、Force Delete、auto-stash、未追跡ファイル削除を実行しない
-- 認証情報をログ・通知へ出力しない
+- 認証情報をログ・通知へ出力しない。監査ログを有効にした場合も、コマンド、引数、cwd、stderrをマスクしてから出力する
 - 配列設定の置換により、ユーザーの明示したコマンド引数を既定値が変形しない
 - 対応Yaziは26.8.15以降（**【Yazi 26.8.15対応で変更、Issue #38】** fetcher契約の破壊的変更により26.5.6とは非互換）。`main.lua`の`--- @since 26.8.15`とREADMEを一致させる
 
@@ -162,6 +168,7 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 | Scope／対象境界／引数 | `core-context.lua`, `core-scope.lua`, `core-targets.lua`, `core-path.lua`, `core-commands.lua` | scope/target/command tests |
 | 設定マージ | `config.lua` | false、配列置換、空配列テスト |
 | timeout | `core-runner.lua` と全read-only caller | `next_poll`、構文、実Yazi手動確認 |
+| 構造化監査ログ | `core-runner.lua`, `config.lua`, 全`Runner.run`／`interactive`呼び出し元 | masking、既定無効、run／interactive記録テスト |
 | Update／認証 | `actions.lua`, `core-runner.lua` | 実Yazi・認証環境で手動確認 |
 | ロック／permit回復 | `actions.lua`, `git-actions.lua`, `core-runner.lua` | Lua例外注入を含む実Yazi確認 |
 | 外部Diff／Log | `core-external.lua`, `actions.lua` | placeholder/environment tests、外部GUI手動確認 |

@@ -333,6 +333,8 @@ VCS CLIへ渡すパスは実行環境のnative形式です。外部GUIの絶対�
 
 コマンドは引数配列で実行し、shell文字列連結を行いません。Force Push、Force Delete、自動stash、強制Switch、未追跡ファイルの自動削除は実行しません。外部コマンドの失敗は通知し、認証情報をログへ出力しません。
 
+For troubleshooting, set `runner.audit.enabled = true` in `require("vcs"):setup({ ... })` to emit structured `ya.dbg` records for `Runner.run` and `Runner.interactive`. The setting is disabled by default. Command arguments, working directories, and captured stderr are masked for credential-like values; interactive terminal input and inherited output are never recorded. The former `VCS_YAZI_TRACE=1` operation trace is no longer used.
+
 ## 検証
 
 ```bash

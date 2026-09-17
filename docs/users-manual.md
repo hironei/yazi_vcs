@@ -101,6 +101,7 @@ require("vcs"):setup()
 | `editor.command` | `"nvim"` | CLI Diff／Log表示のfallbackに使うコマンド。CommitはGit／SVNのeditor設定を使用 |
 | `pager.command` | `"less"` | Diff／Log表示に使うコマンド |
 | `runner.timeout_ms` | `30000` | 通常のCLI操作のタイムアウト（ミリ秒） |
+| `runner.audit.enabled` | `false` | `core-runner.lua`の構造化コマンド監査ログを有効化。既定では無効 |
 | `path.external_style` | `"auto"` | 外部コマンドへ渡すパス形式の自動判定 |
 
 より細かく変更する場合は、`init.lua`の`setup`へ次の設定キーを指定します。`update`、`diff.*_cli`、`log.*_cli`の配列は先頭に実行コマンドを含めます。外部コマンドだけは`command`と`args`を分けて指定します。
@@ -133,6 +134,29 @@ require("vcs"):setup({
 ```
 
 設定はマップについて既定値へ深くマージされるため、指定していない項目は既定値のままです。配列（`update.*`、`diff.*_cli`、`log.*_cli`、`editor.args`、`pager.args`）は指定した配列全体で置き換えられ、既定配列の末尾は引き継ぎません。
+
+### Structured command audit logging
+
+For troubleshooting, structured command audit logging can be enabled explicitly:
+
+```lua
+-- <YAZI_CONFIG_HOME>/init.lua
+require("vcs"):setup({
+  runner = {
+    audit = { enabled = true },
+  },
+})
+```
+
+When enabled, every command sent through the plugin's non-interactive
+`Runner.run` or interactive `Runner.interactive` path produces one structured
+`ya.dbg` record containing the command, arguments, working directory, exit code,
+duration in milliseconds, and stderr when it is safely capturable. Credential-
+like values are replaced with `[REDACTED]`, including password/token/secret
+assignments, separate credential-flag values, Bearer values, and URL userinfo.
+Interactive terminal input and inherited terminal output are never recorded;
+interactive records use `stderr = null`. The setting is disabled by default.
+The former `VCS_YAZI_TRACE=1` ad hoc operation trace has been removed.
 
 ### 5. Yaziを再起動する
 

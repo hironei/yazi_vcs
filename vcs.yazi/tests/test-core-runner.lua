@@ -6,6 +6,16 @@ return function(t)
 	t.eq(runner.summary("abcdef", 3), "abc...", "summary limits long output")
 	t.truthy(runner.error_text({ stderr = "failed\n", status = { code = 1 } }, nil):match("failed"), "stderr is preferred")
 	t.truthy(runner.error_text(nil, "spawn error"):match("spawn error"), "spawn error is formatted")
+	t.eq(
+		runner.mask_text("password=secret token:abc https://alice:pw@example.com Authorization: Bearer XYZ"),
+		"password=[REDACTED] token:[REDACTED] https://[REDACTED]@example.com Authorization: Bearer [REDACTED]",
+		"mask_text removes credential-like values"
+	)
+	t.deep_eq(
+		runner.mask_args({ "--token", "secret", "--password=also-secret", "https://alice:pw@example.com" }),
+		{ "--token", "[REDACTED]", "--password=[REDACTED]", "https://[REDACTED]@example.com" },
+		"mask_args removes standalone and embedded credential values"
+	)
 
 	do
 		local poll_ms, expired = runner.next_poll(nil, 1000)
@@ -29,7 +39,7 @@ return function(t)
 	end
 
 	local function fake_command(events, status)
-		local calls = { events = events, killed = 0, waited = 0, dropped = 0 }
+		local calls = { events = events, killed = 0, waited = 0, dropped = 0, debug_messages = {} }
 		local child = {}
 		function child:read_line_with(_)
 			local event = table.remove(calls.events, 1)
@@ -70,7 +80,10 @@ return function(t)
 		_G.ui = { hide = function()
 			return { drop = function() calls.dropped = calls.dropped + 1 end }
 		end }
-		_G.ya = { time = function() return 0 end }
+		_G.ya = {
+			time = function() return 0 end,
+			dbg = function(message) calls.debug_messages[#calls.debug_messages + 1] = message end,
+		}
 		local ok, err = pcall(fn)
 		_G.Command, _G.ui, _G.ya = old_command, old_ui, old_ya
 		if not ok then error(err, 0) end
@@ -92,6 +105,21 @@ return function(t)
 			t.eq(calls.stdout, Command.PIPED, "non-interactive runner pipes stdout")
 			t.eq(calls.stderr, Command.PIPED, "non-interactive runner pipes stderr")
 			t.eq(calls.waited, 1, "runner waits for the child")
+			t.eq(#calls.debug_messages, 0, "audit logging is disabled by default")
+		end)
+	end
+
+	do
+		local Command, calls = fake_command({ { line = "safe output", stream = 0 }, { line = "password=secret", stream = 1 }, 2 }, { success = false, code = 7 })
+		with_fake_yazi(Command, calls, function()
+			local output, err = runner.run({ command = "git", args = { "push", "--token", "secret" }, cwd = "https://alice:pw@example.com/repo" }, 1000, { enabled = true })
+			t.falsy(err, "audited runner still returns command result")
+			t.eq(output.status.code, 7, "audited runner preserves exit code")
+			t.eq(#calls.debug_messages, 1, "enabled audit logging records one run")
+			t.truthy(calls.debug_messages[1]:match('"command":"git"'), "audit includes command")
+			t.truthy(calls.debug_messages[1]:match('"exit_code":7'), "audit includes exit code")
+			t.truthy(calls.debug_messages[1]:match("%[REDACTED%]"), "audit masks credential-like values")
+			t.falsy(calls.debug_messages[1]:match("secret"), "audit does not contain the token or stderr secret")
 		end)
 	end
 
@@ -124,13 +152,15 @@ return function(t)
 	do
 		local Command, calls = fake_command({}, { success = true, code = 0 })
 		with_fake_yazi(Command, calls, function()
-			local status, err = runner.interactive({ command = "git", args = { "pull" } })
+			local status, err = runner.interactive({ command = "git", args = { "pull" } }, { enabled = true })
 			t.falsy(err, "interactive command has no error on success")
 			t.truthy(status.success, "interactive command returns its status")
 			t.eq(calls.stdin, Command.INHERIT, "interactive runner inherits stdin")
 			t.eq(calls.stdout, Command.INHERIT, "interactive runner inherits stdout")
 			t.eq(calls.stderr, Command.INHERIT, "interactive runner inherits stderr")
 			t.eq(calls.dropped, 1, "interactive runner drops the permit on success")
+			t.eq(#calls.debug_messages, 1, "enabled audit logging records one interactive call")
+			t.truthy(calls.debug_messages[1]:match('"stderr":null'), "interactive audit does not capture terminal stderr")
 		end)
 	end
 
