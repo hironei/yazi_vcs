@@ -1435,7 +1435,7 @@ permit:drop()
 - `stderr`: 非対話型では取得した標準エラー、対話型では`null`
 - `error`: spawn、status待ち、またはLuaエラーなど、終了コードを取得できない理由。該当しない場合は`null`
 
-ログへ出す前に、コマンド、引数、cwd、stderrのすべてへ認証情報マスキングを適用する。パスワード、passwd／pwd、token、access token、refresh token、API key、secret、authorization／Bearer／Basic値、URLに埋め込まれたuserinfo（ユーザー名とパスワード）を`[REDACTED]`へ置換する。キー名にtoken等を含む`GITHUB_TOKEN`のような形式と、引数の`--token value`のような分離形式も対象とする。stdin、対話型コマンドのstdout／stderr、端末入力内容は取得または監査ログへ記録しない。
+ログへ出す前に、コマンド、引数、cwd、stderrのすべてへ認証情報マスキングを適用する。パスワード、passwd／pwd、token、access token、refresh token、API key、secret、authorizationヘッダーの方式を問わない値、URLに埋め込まれたuserinfo（ユーザー名とパスワード）を`[REDACTED]`へ置換する。キー名にtoken等を含む`GITHUB_TOKEN`のような形式と、引数の`--token value`のような分離形式も対象とする。stdin、対話型コマンドのstdout／stderr、端末入力内容は取得または監査ログへ記録しない。
 
 以前の`VCS_YAZI_TRACE=1`による`actions.lua`の未構造化操作トレースは廃止し、監査が必要なコマンド実行はこの設定へ統一する。GUIの`Runner.launch`は、コマンド完了を待たない既存の起動経路であるため、この監査レコードの対象外とする。
 

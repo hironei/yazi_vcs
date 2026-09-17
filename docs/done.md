@@ -4,7 +4,7 @@
 
 - Added opt-in structured `ya.dbg` audit records for non-interactive and interactive VCS runner calls, including masked command, arguments, cwd, exit code, duration, safely capturable stderr, and failure reasons.
 - Removed the legacy `VCS_YAZI_TRACE=1` ad hoc operation trace and documented that interactive terminal input/output is never recorded.
-- Added credential masking for Basic/Bearer auth, derived credential key names, and URL userinfo, plus pager and failure-path coverage.
+- Added credential masking for Authorization header values, derived credential key names, and URL userinfo, plus pager and failure-path coverage.
 - Updated requirements §21.3, design, user manual, and plugin README documentation.
 - Issue: [#79](https://github.com/hironei/yazi_vcs/issues/79)
 

@@ -15,7 +15,7 @@ Phase 4の操作:
 
 トラブルシューティング時は、`runner.audit.enabled = true`で非対話型／対話型の
 VCSコマンドを`ya.dbg`へ構造化記録できます。既定では無効です。ログ出力前に
-credential-likeな値をマスクし、対話型コマンドの端末入力と継承された端末出力は
+credential-likeな値とAuthorizationヘッダー値をマスクし、対話型コマンドの端末入力と継承された端末出力は
 記録しません。確認には`YAZI_LOG=debug`を設定してください。旧
 `VCS_YAZI_TRACE=1`による操作トレースは廃止されています。
 

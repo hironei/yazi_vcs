@@ -131,7 +131,7 @@ GUIは`Runner.launch()`で`ya.emit("shell", { orphan = true })`を使い、終�
 
 ### 5.3 構造化監査ログ
 
-`runner.audit.enabled`は既定で無効である。`core-runner.lua`は有効時だけ、`command`、マスク済み`args`、マスク済み`cwd`、`exit_code`、`duration_ms`、マスク済み`stderr`、およびspawn／status待ち／Luaエラー時の`error`をJSON形式の1行として`ya.dbg`へ渡す。マスキングはログ直前に行い、キー名にtoken／secret／password等を含む値、分離されたcredential flagの次の引数、Bearer／Basic値、URL userinfoを`[REDACTED]`へ変換する。interactiveは端末をinheritするためstderrを収集せず`null`を記録し、stdin／端末内容も記録しない。CLI Diff／Logのpagerも`cfg.runner.audit`を同じ経路へ渡す。
+`runner.audit.enabled`は既定で無効である。`core-runner.lua`は有効時だけ、`command`、マスク済み`args`、マスク済み`cwd`、`exit_code`、`duration_ms`、マスク済み`stderr`、およびspawn／status待ち／Luaエラー／timeout時の`error`をJSON形式の1行として`ya.dbg`へ渡す。マスキングはログ直前に行い、キー名にtoken／secret／password等を含む値、分離されたcredential flagの次の引数、`Authorization:`ヘッダーの方式を問わない値、URL userinfoを`[REDACTED]`へ変換する。単独の一般語`Basic`はマスク規則にしない。interactiveは端末をinheritするためstderrを収集せず`null`を記録し、stdin／端末内容も記録しない。CLI Diff／Logのpagerも`cfg.runner.audit`を同じ経路へ渡す。
 
 既存の`VCS_YAZI_TRACE`操作トレースは削除する。`Runner.launch`は終了結果を持たないGUI orphan起動のため監査対象外とし、`run`／`interactive`へ渡るすべてのVCSコマンドを同一の監査経路へ集約する。
 

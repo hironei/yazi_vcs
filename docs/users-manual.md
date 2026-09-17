@@ -139,7 +139,7 @@ require("vcs"):setup({
 
 設定ファイルを保存したらYaziをいったん終了して再起動します。GitリポジトリまたはSVN working copy内で、ファイル名の前に状態記号とstatus barのリポジトリ位置が表示されればstatus表示のセットアップは完了です。
 
-### Structured command audit logging
+### 構造化コマンド監査ログ
 
 トラブルシューティング時は、構造化コマンド監査ログを明示的に有効化できます。
 
@@ -156,11 +156,12 @@ require("vcs"):setup({
 `Runner.interactive`を通る各コマンドについて、command、引数、working
 directory、終了コード、実行時間（ミリ秒）、安全に取得できるstderrを含む
 構造化`ya.dbg`レコードを1件出力します。パスワード、token、secret、
-authorization、Bearer／Basic認証値、分離されたcredential flagの値、URL
+authorizationヘッダーの方式を問わない認証値、分離されたcredential flagの値、URL
 userinfoなどのcredential-likeな値は`[REDACTED]`へ置換されます。
 `YAZI_LOG=debug`を設定したYaziのデバッグログで確認してください。
 対話型コマンドの端末入力と継承された端末出力は記録せず、対話型レコードの
-`stderr`は`null`になります。既定では無効です。旧`VCS_YAZI_TRACE=1`による
+`stderr`は`null`になります。timeoutやspawn／status／Luaエラーの理由は
+`error`へ記録されます。既定では無効です。旧`VCS_YAZI_TRACE=1`による
 未構造化の操作トレースは廃止されています。
 
 ## キー割り当て

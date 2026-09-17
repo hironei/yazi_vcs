@@ -336,7 +336,7 @@ VCS CLIへ渡すパスは実行環境のnative形式です。外部GUIの絶対�
 `require("vcs"):setup({ ... })`で`runner.audit.enabled = true`を設定すると、
 `Runner.run`と`Runner.interactive`の構造化`ya.dbg`監査レコードを出力できます。
 既定では無効です。コマンド引数、working directory、取得したstderrのcredential-likeな
-値はマスクされ、対話型コマンドの端末入力と継承された端末出力は記録されません。
+値とAuthorizationヘッダー値はマスクされ、対話型コマンドの端末入力と継承された端末出力は記録されません。
 確認には`YAZI_LOG=debug`を設定してください。旧`VCS_YAZI_TRACE=1`による操作
 トレースは廃止されています。
 

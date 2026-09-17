@@ -40,13 +40,13 @@ function M.mask_text(text)
 	text = tostring(text or "")
 	-- Remove URL userinfo as a unit, including both username and password.
 	text = text:gsub("([%a][%w+.-]*://)([^/%s]+)@", "%1" .. REDACTED .. "@")
-	-- Authorization headers carry a scheme and a value in one token sequence.
-	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])(%s*:%s*)([Bb][Aa][Ss][Ii][Cc])(%s+)([^%s,;&]+)", function(key, separator, scheme, spaces)
-		return key .. separator .. scheme .. spaces .. REDACTED
+	-- Authorization may use Basic, Bearer, Token, Negotiate, or another
+	-- scheme. Mask the complete header value through the next delimiter.
+	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])(%s*:%s*)([^,;&]*)", function(key, separator)
+		return key .. separator .. REDACTED
 	end)
-	-- Bearer and Basic credentials do not necessarily have a key/value separator.
+	-- Bearer credentials do not necessarily have a key/value separator.
 	text = text:gsub("([Bb][Ee][Aa][Rr][Ee][Rr]%s+)([^%s,;]+)", "%1" .. REDACTED)
-	text = text:gsub("([Bb][Aa][Ss][Ii][Cc]%s+)([^%s,;]+)", "%1" .. REDACTED)
 	-- Cover query strings, environment-like assignments, and header-like text.
 	text = text:gsub("([%w_%-]+)(%s*[:=]%s*)([^%s,;&]+)", function(key, separator, value)
 		local authorization_scheme = normalized_credential_key(key) == "authorization"
@@ -205,7 +205,7 @@ local function audit_enabled(audit_config)
 	return type(audit_config) == "table" and audit_config.enabled == true
 end
 
-local function audit(spec, audit_config, status, started_at, stderr, error)
+local function audit(spec, audit_config, status, started_at, stderr, failure_reason)
 	if not audit_enabled(audit_config) or type(ya) ~= "table" or type(ya.dbg) ~= "function" then return end
 	local exit_code = status and status.code or nil
 	local duration_ms = now_ms() - started_at
@@ -216,7 +216,7 @@ local function audit(spec, audit_config, status, started_at, stderr, error)
 		exit_code = exit_code,
 		duration_ms = duration_ms,
 		stderr = stderr,
-		error = error,
+		error = failure_reason,
 	}))
 end
 
@@ -306,11 +306,13 @@ function M.run(spec, timeout_ms, audit_config)
 	-- without adding a second terminator; test doubles and an unterminated
 	-- final record are normalized to the same newline-delimited form.
 	local result = { status = result_status, stdout = join_lines(stdout), stderr = join_lines(stderr) }
+	local failure_reason = nil
 	if timed_out then
 		result.timed_out = true
+		failure_reason = "command timed out"
 		result.stderr = result.stderr ~= "" and result.stderr or "command timed out"
 	end
-	audit(spec, audit_config, result_status, started_at, result.stderr)
+	audit(spec, audit_config, result_status, started_at, result.stderr, failure_reason)
 	return result, nil
 end
 

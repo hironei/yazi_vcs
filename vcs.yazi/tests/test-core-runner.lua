@@ -8,7 +8,7 @@ return function(t)
 	t.truthy(runner.error_text(nil, "spawn error"):match("spawn error"), "spawn error is formatted")
 	t.eq(
 		runner.mask_text("password=secret token:abc https://alice:pw@example.com Authorization: Bearer XYZ"),
-		"password=[REDACTED] token:[REDACTED] https://[REDACTED]@example.com Authorization: Bearer [REDACTED]",
+		"password=[REDACTED] token:[REDACTED] https://[REDACTED]@example.com Authorization: [REDACTED]",
 		"mask_text removes credential-like values"
 	)
 	t.deep_eq(
@@ -18,19 +18,20 @@ return function(t)
 	)
 	t.eq(
 		runner.mask_text("Authorization: Basic basic-secret"),
-		"Authorization: Basic [REDACTED]",
+		"Authorization: [REDACTED]",
 		"mask_text removes Basic authorization values"
 	)
 	t.eq(
-		runner.mask_text("git -c http.extraHeader=Authorization: Basic basic-secret"),
-		"git -c http.extraHeader=Authorization: Basic [REDACTED]",
-		"mask_text removes Basic values in http.extraHeader arguments"
+		runner.mask_text("git -c http.extraHeader=Authorization: Token token-secret"),
+		"git -c http.extraHeader=Authorization: [REDACTED]",
+		"mask_text removes arbitrary authorization schemes in http.extraHeader arguments"
 	)
 	t.deep_eq(
-		runner.mask_args({ "-c", "http.extraHeader=Authorization: Basic basic-secret" }),
-		{ "-c", "http.extraHeader=Authorization: Basic [REDACTED]" },
-		"mask_args removes Basic values in a Git config argument"
+		runner.mask_args({ "-c", "http.extraHeader=Authorization: Negotiate negotiate-secret" }),
+		{ "-c", "http.extraHeader=Authorization: [REDACTED]" },
+		"mask_args removes arbitrary authorization schemes in a Git config argument"
 	)
+	t.eq(runner.mask_text("basic usage: use --help"), "basic usage: use --help", "mask_text leaves ordinary Basic text unchanged")
 	t.eq(
 		runner.mask_text("GITHUB_TOKEN=github-secret private_token:private-secret oauth_token=oauth-secret"),
 		"GITHUB_TOKEN=[REDACTED] private_token:[REDACTED] oauth_token=[REDACTED]",
@@ -167,7 +168,7 @@ return function(t)
 	end
 
 	do
-		local Command, calls = fake_command({ 3 }, { success = false, code = 137 })
+		local Command, calls = fake_command({ { line = "timeout stderr", stream = 1 }, 3 }, { success = false, code = 137 })
 		with_fake_yazi(Command, calls, function()
 			local output, err = runner.run({ command = "git", args = { "status" } }, 10, { enabled = true })
 			t.falsy(err, "timeout is returned as a command result")
@@ -176,7 +177,8 @@ return function(t)
 			t.eq(calls.killed, 1, "runner kills a timed-out child")
 			t.eq(calls.waited, 1, "runner waits after killing a timed-out child")
 			t.eq(#calls.debug_messages, 1, "audit records a timeout")
-			t.truthy(calls.debug_messages[1]:match('"stderr":"command timed out"'), "timeout reason is recorded as stderr")
+			t.eq(output.stderr, "timeout stderr", "timeout preserves captured stderr")
+			t.truthy(calls.debug_messages[1]:match('"error":"command timed out"'), "timeout reason is recorded as error")
 		end)
 	end
 
