@@ -1,12 +1,73 @@
 return function(t)
 	-- `core-context.lua` calls `ya.sync(fn)` at require time (to build
-	-- `M.snapshot`), so it needs a passthrough stub just to load under plain
-	-- Lua. `resolve_url` and `build_snapshot` themselves make no Yazi API
-	-- calls and are exercised directly below.
+	-- the capture functions), so it needs a stub to load under plain Lua.
+	-- Track the boundary to catch accidental async I/O inside that callback.
 	local old_ya = _G.ya
-	_G.ya = { sync = function(fn) return fn end }
+	local in_sync = false
+	_G.ya = { sync = function(fn)
+		return function(...)
+			in_sync = true
+			local result = fn(...)
+			in_sync = false
+			return result
+		end
+	end }
 	local context = require("core-context")
 	_G.ya = old_ya
+
+	-- A selected directory outside the visible listing must retain its own
+	-- metadata; missing metadata must be resolved after leaving ya.sync.
+	do
+		local old_cx, old_fs, old_Url = _G.cx, _G.fs, _G.Url
+		local calls, sync_calls = 0, 0
+		_G.Url = function(path) return path end
+		_G.fs = { cha = function(path)
+			calls = calls + 1
+			if in_sync then sync_calls = sync_calls + 1 end
+			return { is_dir = path == "/repo/directory" }
+		end }
+		local variants = {
+			{ name = "File with directory metadata", entry = { url = "/repo/directory", cha = { is_dir = true } }, expected = true, lookups = 0 },
+			{ name = "File with file metadata", entry = { url = "/repo/file", cha = { is_dir = false } }, expected = false, lookups = 0 },
+			{ name = "File without cha", entry = { url = "/repo/directory" }, expected = true, lookups = 1 },
+			{ name = "File with malformed cha", entry = { url = "/repo/directory", cha = "invalid" }, expected = true, lookups = 1 },
+			{ name = "File with nonboolean is_dir", entry = { url = "/repo/directory", cha = { is_dir = "false" } }, expected = true, lookups = 1 },
+			{ name = "Url with metadata", entry = { path = "/repo/directory", cha = { is_dir = true } }, expected = true, lookups = 0 },
+			{ name = "Url without metadata", entry = { path = "/repo/directory" }, expected = true, lookups = 1 },
+			{ name = "plain path", entry = "/repo/directory", expected = true, lookups = 1 },
+			{ name = "plain file path", entry = "/repo/file", expected = false, lookups = 1 },
+		}
+		for _, variant in ipairs(variants) do
+			local active = { selected = { variant.entry }, current = { cwd = "/repo", files = {} } }
+			_G.cx = { active = active, tabs = { active, idx = 1 } }
+			calls = 0
+			local snapshot = context.snapshot()
+			local path = context.resolve_url(variant.entry)
+			t.eq(snapshot.info[path], variant.expected, variant.name .. " retains directory classification for Discard")
+			t.eq(calls, variant.lookups, variant.name .. " only stats missing metadata for Discard")
+			calls = 0
+			local operation = context.file_operation_snapshot()
+			t.eq(operation.selected[1].is_dir, variant.expected, variant.name .. " retains directory classification for Rename/Move")
+			t.eq(calls, variant.lookups, variant.name .. " only stats missing metadata for Rename/Move")
+		end
+		t.eq(sync_calls, 0, "filesystem lookups stay outside the synchronous Yazi callback")
+		local active = { selected = { "/repo/directory" }, current = {
+			cwd = "/repo", files = { { url = "/repo/directory", cha = { is_dir = true } } },
+			hovered = { url = "/repo/directory" },
+		} }
+		_G.cx = { active = active, tabs = { active, idx = 1 } }
+		calls = 0
+		t.truthy(context.snapshot().info["/repo/directory"], "visible directory metadata fills a plain selection")
+		t.eq(calls, 0, "usable visible metadata avoids an unnecessary filesystem lookup")
+		t.truthy(context.file_operation_snapshot().hovered.is_dir, "hovered items also recover absent metadata")
+		active.current.files = {}
+		for _, lookup in ipairs({ function() return nil end, function() error("unreadable") end }) do
+			_G.fs.cha = lookup
+			t.eq(context.snapshot().info["/repo/directory"], false, "unavailable metadata retains the existing non-directory fallback")
+			t.eq(context.file_operation_snapshot().selected[1].is_dir, false, "file operations tolerate a failed metadata lookup")
+		end
+		_G.cx, _G.fs, _G.Url = old_cx, old_fs, old_Url
+	end
 
 	-- Yazi 26.8.15: `pairs(tab.selected)` yields `File`-shaped values, which
 	-- carry the url under `.url`.
