@@ -15,6 +15,14 @@ function M.path_join(left, right)
 	return left .. (M.is_windows and "\\" or "/") .. right
 end
 
+-- Isolate the fake commit editor without changing the test runner's environment.
+function M.without_git_editor_env(command)
+	if M.is_windows then
+		return 'set "GIT_EDITOR=" && set "VISUAL=" && set "EDITOR=" && ' .. command
+	end
+	return "(unset GIT_EDITOR VISUAL EDITOR; " .. command .. ")"
+end
+
 function M.run_in_dir(dir, command)
 	local cd = M.is_windows and "cd /d " or "cd "
 	return os.execute(cd .. M.shell_quote(dir) .. " && " .. command)

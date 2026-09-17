@@ -8,9 +8,10 @@ return function(t)
 	local function shell(args)
 		local quoted = {}; for _, arg in ipairs(args) do quoted[#quoted + 1] = t.shell_quote(arg) end; return table.concat(quoted, " ")
 	end
-	local function git(args) return t.run_in_dir(dir, "git " .. shell(args)) end
+	local function git_command(args) return t.without_git_editor_env("git " .. shell(args)) end
+	local function git(args) return t.run_in_dir(dir, git_command(args)) end
 	local function capture(args)
-		local proc = t.capture_in_dir(dir, "git " .. shell(args)); local out = proc:read("*a"); proc:close(); return out
+		local proc = t.capture_in_dir(dir, git_command(args)); local out = proc:read("*a"); proc:close(); return out
 	end
 	git({ "init", "-q", "-b", "main", "." }); git({ "config", "user.email", "test@example.invalid" }); git({ "config", "user.name", "test" })
 	local a, b = t.path_join(dir, "space name.txt"), t.path_join(dir, "other.txt")
