@@ -62,6 +62,18 @@ local function append_line(lines, line)
 	if line then lines[#lines + 1] = line end
 end
 
+local function join_lines(lines)
+	local chunks = {}
+	for index, line in ipairs(lines) do
+		chunks[#chunks + 1] = line
+		-- Yazi's read_line_with returns the line terminator when one was
+		-- read. Keep it intact, while tolerating test doubles and an
+		-- unterminated final record without producing doubled newlines.
+		if index < #lines and line:sub(-1) ~= "\n" then chunks[#chunks + 1] = "\n" end
+	end
+	return table.concat(chunks)
+end
+
 --- The default `Child:read_line_with` timeout to poll with when
 --- `runner.timeout_ms` is disabled (0) — the API has no "block forever"
 --- option, so a disabled timeout still needs some finite poll length.
@@ -147,11 +159,10 @@ function M.run(spec, timeout_ms)
 	-- backend-svn.lua) — on a timeout, substitute a plain table with the same
 	-- `success`/`code` shape instead of mutating a value we don't own.
 	local result_status = timed_out and { success = false, code = status.code } or status
-	-- `read_line_with` line-terminator handling isn't documented; join with
-	-- "\n" explicitly rather than assume each returned line still carries
-	-- one. A harmless doubled newline if it already did is still parsed
-	-- correctly by core-git.lua's `[^\r\n]+`-based line splitters.
-	local result = { status = result_status, stdout = table.concat(stdout, "\n"), stderr = table.concat(stderr, "\n") }
+	-- Yazi returns lines including a terminator when one was read. Join
+	-- without adding a second terminator; test doubles and an unterminated
+	-- final record are normalized to the same newline-delimited form.
+	local result = { status = result_status, stdout = join_lines(stdout), stderr = join_lines(stderr) }
 	if timed_out then
 		result.timed_out = true
 		result.stderr = result.stderr ~= "" and result.stderr or "command timed out"

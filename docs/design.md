@@ -54,7 +54,8 @@ main.lua: M:fetch(job)
        -> backend.status_specをRunner.run(timeout_ms)で1回だけ実行
           失敗 -> Fetcher.error(job, err) へ（State更新は行わない）
        -> status解析、ディレクトリ集約、除外反映
-       -> info_specもRunner.run(timeout_ms)で取得
+       -> State.info_of(root)が空、またはinfo.refresh_msの期限を超えた場合に
+           info_specをRunner.run(timeout_ms)で取得。失敗時は既存metadataを保持
   3. State更新 (core-state.lua)
        -> State.remember (ya.sync) -> ui.render
   4. Fetcher result生成 (core-fetcher.lua)
@@ -62,7 +63,7 @@ main.lua: M:fetch(job)
 ```
 
 - ステップ2・3はYazi fetcher契約に依存しない既存の同期的処理（`Detector`、`BACKENDS[kind]`、`Runner.run`、`State.remember`）をそのまま踏襲し、`main.lua`内に留める。新規モジュール化は行わない（Issue #38は「Yazi fetcher契約からの独立」を要求しているのであって、ファイル分割そのものを要求していない）
-- `core-fetcher.lua`が提供するのはステップ1（`job.files`空時の即時委譲）とステップ4（result coroutine生成）の2箇所の呼び出し先、すなわち`Fetcher.noop`／`Fetcher.error`／`Fetcher.retry`の3関数のみ。coroutine／`ya.co`の実体はすべてこのモジュール内に閉じる。
+- `core-fetcher.lua`が提供するのはステップ1とステップ4のresult coroutine生成、およびrefresh例外を捕捉する`Fetcher.safe_refresh`である。coroutine／`ya.co`の実体はすべてこのモジュール内に閉じる。
 
 ```lua
 -- core-fetcher.lua
@@ -131,9 +132,9 @@ Update、Commit、Discard、Push、Branch、Switchはroot単位の`State.begin_a
 ## 7. 対話操作の個別仕様
 
 - Update: 設定配列を展開して`Runner.interactive`で実行。成功後にrefresh、失敗時は通知。
-- Commit: typed confirmation後、Git/SVNのネイティブcommit commandをinteractiveに起動する。Git `paths`モードは選択パスだけを暗黙stageし、Git/SVNが標準editor解決とcommit message templateを管理する。
+- Commit: typed confirmation後、Git/SVNのネイティブcommit commandをinteractiveに起動する。Git `paths`モードは選択パスだけを暗黙stageし、`staged`モードはindex全体をcommitすることを確認文に明示する。Git/SVNが標準editor解決とcommit message templateを管理する。
 - Diff/Log: CLI出力をタイムアウト付きRunnerで収集し、一時ファイルをpager/editorで表示。
-- Discard: tracked対象だけを確認入力後に復元。未追跡／ignoredは除外。
+- Discard: tracked対象だけを確認入力後に復元。未追跡／ignoredは除外し、集約表示されたdirectoryはGitのcached pathまたはSVNの`info --show-item kind`でtracked directoryと未追跡directoryを区別する。
 - Push/Branch/Switch: Git専用Runner経路を使い、force操作・auto-stash・強制switchは行わない。
 
 ## 8. セキュリティと互換性

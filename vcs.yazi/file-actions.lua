@@ -9,6 +9,7 @@ local Path = require(".core-path")
 local Runner = require(".core-runner")
 local State = require(".core-state")
 local Targets = require(".core-targets")
+local VersionedPath = require(".core-versioned-path")
 
 local M = {}
 
@@ -18,6 +19,10 @@ end
 
 local function run(kind, root, args, cfg)
 	return Runner.run({ command = kind, args = args, cwd = root }, cfg.runner.timeout_ms)
+end
+
+local function versioned_path(kind, root, path, cfg)
+	return VersionedPath.query(kind, root, path, cfg)
 end
 
 local function move_args(kind, paths, destination)
@@ -224,7 +229,18 @@ function M.delete()
 
 		local statuses = {}
 		for _, path in ipairs(relative) do statuses[path] = State.status_of(scope.root, path) end
-		local kept, excluded = Targets.exclude_untracked(relative, statuses)
+		local versioned = {}
+		if scope.kind == "git" or scope.kind == "svn" then
+			for i, source in ipairs(sources) do
+				local path = relative[i]
+				if source.is_dir and statuses[path] == "untracked" then
+					local tracked, tracked_err = versioned_path(scope.kind, scope.root, path, cfg)
+					if tracked == nil then return fail(scope.kind, "status", nil, tracked_err) end
+					versioned[path] = tracked
+				end
+			end
+		end
+		local kept, excluded = Targets.exclude_untracked(relative, statuses, versioned)
 		if #excluded > 0 then
 			Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", "))
 		end

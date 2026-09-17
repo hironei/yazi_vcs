@@ -46,4 +46,16 @@ function M.error(job, err)
 	return M.noop(job)
 end
 
+--- Keep refresh failures inside the fetcher contract. Yazi must still receive
+--- one result per input file even when status or metadata commands fail.
+---@param refresh function
+---@param job table
+function M.safe_refresh(refresh, job)
+	local ok, status, err = pcall(refresh, job)
+	if not ok then return M.error(job, status) end
+	if status == "error" then return M.error(job, err) end
+	if status == "noop" then return M.noop(job) end
+	return M.retry(job)
+end
+
 return M

@@ -13,6 +13,7 @@ local Changes = require(".core-changes")
 local LogPreview = require(".core-log-preview")
 local Commands = require(".core-commands")
 local Temp = require(".core-temp")
+local VersionedPath = require(".core-versioned-path")
 local GitBackend = require(".backend-git")
 local SvnBackend = require(".backend-svn")
 local VcsInfo = require(".core-vcs-info")
@@ -36,6 +37,10 @@ end
 
 local function run(root, command, args, cfg)
 	return Runner.run({ command = command, args = args, cwd = root }, cfg.runner.timeout_ms)
+end
+
+local function versioned_path(kind, root, path, cfg)
+	return VersionedPath.query(kind, root, path, cfg)
 end
 
 local function argv(configured, fallback_command, fallback_args)
@@ -98,50 +103,22 @@ local function finish_interactive(root, operation)
 end
 
 local function failure(operation, output, err)
-	Notify.error("%s failed: %s", operation, Runner.error_text(output, err))
+	Notify.error("%s failed: %s", operation, Runner.summary(Runner.error_text(output, err), 240))
 end
 
 local function temp_file(content)
 	local path, path_err = Temp.path("vcs-message")
 	if not path then return nil, path_err end
-	local file, err = io.open(path, "w")
-	if not file then return nil, err end
-	file:write(content or "")
-	file:close()
-	return path
+	local written_path, err = Temp.write(path, content)
+	if not written_path then return nil, err end
+	return written_path
 end
 
 --- Write view output through Yazi's async filesystem API. `view_operation`
 --- runs in an async plugin context, where Lua's blocking `io.open()` can
 --- leave the task pending on Windows before the pager is started.
-local function temp_output_file(content)
-	local temp_path, path_err = Temp.path("vcs-output")
-	if not temp_path then return nil, path_err end
-	local url = Url(temp_path)
-	local path = tostring(url)
-	local ok, err = fs.write(url, content or "")
-	if not ok then return nil, err end
-	return path
-end
-
 local function remove_file(path)
-	if path then os.remove(path) end
-end
-
-local function remove_output_file(path)
-	if path then fs.remove("file", Url(path)) end
-end
-
-local function display_file(path, cfg)
-	local viewer = cfg.pager and cfg.pager.command and cfg.pager.command ~= "" and cfg.pager or cfg.editor
-	if not viewer or not viewer.command or viewer.command == "" then return nil, "pager/editor is not configured" end
-	local args = {}
-	for _, value in ipairs(viewer.args or {}) do args[#args + 1] = value end
-	args[#args + 1] = path
-	local status, err = Runner.interactive({ command = viewer.command, args = args })
-	if not status then return nil, err end
-	if not status.success then return nil, "viewer exited with code " .. tostring(status.code or "unknown") end
-	return true
+	return Temp.remove(path)
 end
 
 local function debug_log(message)
@@ -247,10 +224,7 @@ end
 
 local function display_output(operation, content, cfg)
 	if Runner.summary(content, 1) == "" then return Notify.info("No output from %s.", operation) end
-	local file, temp_err = temp_output_file(content)
-	if not file then return Notify.error("Cannot create output file: %s", temp_err) end
-	local shown, display_err = display_file(file, cfg)
-	remove_output_file(file)
+	local shown, display_err = Temp.display(content, cfg, Runner)
 	if not shown then return Notify.error("%s output could not be displayed: %s", operation, display_err) end
 end
 
@@ -376,7 +350,11 @@ function M.commit()
 			.. "\n\nThis may include multiple changed files under this directory."
 			if scope.repository then body = body .. "\nThis is the repository root, so the scope includes the entire repository." end
 		end
-		if kind == "git" and mode ~= "staged" then body = body .. "\n\nSelected paths are staged implicitly by Git." end
+		if kind == "git" and mode == "staged" then
+			body = body .. "\n\nStaged mode commits all currently staged changes; the selected paths do not filter the index."
+		elseif kind == "git" then
+			body = body .. "\n\nSelected paths are staged implicitly by Git."
+		end
 		-- ya.confirm() does not render in the functional plugin task on
 		-- Windows and leaves the task pending indefinitely (see issue #22,
 		-- which hit the same problem in Discard); ya.input() is the
@@ -604,7 +582,17 @@ function M.discard()
 		for i, path in ipairs(paths) do abs_by_rel[path] = absolute[i] end
 		local statuses = {}
 		for _, path in ipairs(paths) do statuses[path] = State.status_of(root, path) end
-		local kept, excluded = Targets.exclude_untracked(paths, statuses)
+		local versioned = {}
+		if kind == "git" or kind == "svn" then
+			for i, path in ipairs(paths) do
+				if info[absolute[i]] and statuses[path] == "untracked" then
+					local tracked, tracked_err = versioned_path(kind, root, path, cfg)
+					if tracked == nil then return failure(kind:upper() .. " status", nil, tracked_err) end
+					versioned[path] = tracked
+				end
+			end
+		end
+		local kept, excluded = Targets.exclude_untracked(paths, statuses, versioned)
 		trace("discard:kept=" .. table.concat(kept, " | ") .. " excluded=" .. table.concat(excluded, " | "))
 		if #excluded > 0 then Notify.warn("Untracked/ignored targets were excluded: " .. table.concat(excluded, ", ")) end
 		if #kept == 0 then return end
@@ -620,8 +608,9 @@ function M.discard()
 			.. "\n\nThis operation cannot be undone."
 		end
 		if recursive then
-			local value, event = ya.input({ title = 'Type "revert" to confirm:\n' .. body, pos = { "center", w = 60 } })
-			if event ~= 1 or value ~= (cfg.discard.recursive_confirm_text or "revert") then return Notify.info("Discard cancelled.") end
+			local confirm_text = cfg.discard.recursive_confirm_text or "revert"
+			local value, event = ya.input({ title = 'Type "' .. confirm_text .. '" to confirm:\n' .. body, pos = { "center", w = 60 } })
+			if event ~= 1 or value ~= confirm_text then return Notify.info("Discard cancelled.") end
 		else
 			local value, event = ya.input({
 				title = 'Type "discard" to confirm:\n' .. body,
@@ -674,7 +663,7 @@ local function copy_action(with_revision)
 			output, err = Runner.run(GitBackend.revision_spec(root), cfg.runner.timeout_ms)
 		end
 		if not output or not output.status.success then
-			return Notify.error("Copy URL with revision failed: %s", Runner.error_text(output, err))
+			return Notify.error("Copy URL with revision failed: %s", Runner.summary(Runner.error_text(output, err), 240))
 		end
 		local revision = output_value(output)
 		if revision == "" then return Notify.error("Copy URL with revision failed: no revision was returned.") end

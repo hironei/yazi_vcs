@@ -1,7 +1,7 @@
 # Yazi向け Git／SVN 統合VCSプラグイン 要件定義
 
 - 対象Yaziバージョン：26.8.15 以降（Issue #38対応前は26.5.6以降。§5.4参照）
-- 最終更新：2026-08-23
+- 最終更新：2026-09-17
 
 ---
 
@@ -31,14 +31,14 @@
 
 | 項目 | 内容 | 対応 |
 |---|---|---|
-| 先頭列表示 | `Entity:children_add`により真の先頭列描画が可能 | §8.1 の留保を削除し必須要件化 |
+| 状態表示 | 現行実装は`Linemode:children_add`を使用 | §8.1 と受入条件を現行表示ライフサイクルへ整合 |
 | ルート検出 | サブプロセス不要でLuaのみで判定可能 | §6.2 を変更 |
 | index衝突回避 | `--no-optional-locks`が必要 | §8.4、§27 に追加 |
 | バージョン整合 | Yaziは`--- @since`ヘッダを検査する | §5.4 を新設 |
 
-### 0.4 未検証事項
+### 0.4 検証境界
 
-本改訂の検証環境に SVN CLI が導入されていないため、**SVN に関する記述は文書ベースでの確認にとどまる**。実装着手前に §26.4 の事前検証を実施すること。
+GitのCLI・Luaユニットテスト・Git統合テストは確認済みである。SVN CLIを使う実機確認、YaziのネイティブUI、pager/editor、クリップボード、外部VCSサービスの受入は自動テストの対象外であり、§26.4の実機確認として別途記録する。
 
 ---
 
@@ -178,20 +178,22 @@ vcs.yazi/
 ├── core-scope.lua        -- 共通scope解決と失敗通知
 ├── core-targets.lua      -- 操作scopeと対象ファイル決定
 ├── core-external.lua     -- エディタ／pager／外部ツール起動
+├── core-commands.lua     -- Git／SVNのコマンド引数
+├── core-changes.lua      -- Changes Viewの対象分類
+├── core-status.lua       -- 状態集約・伝播・表示
+├── core-fetcher.lua      -- Yazi fetcher結果契約
+├── core-vcs-info.lua     -- Git／SVNメタデータ解析
+├── core-log-preview.lua  -- Git／SVN履歴解析
+├── core-preview.lua      -- 標準preview委譲
+├── core-temp.lua         -- 一時ファイルと出力表示
 ├── core-path.lua         -- パス正規化・変換
 ├── core-notify.lua       -- 通知整形
 ├── core-state.lua        -- ya.sync 越しの状態read/write
 ├── backend-git.lua
 ├── backend-svn.lua
-├── action-status.lua
-├── action-update.lua
-├── action-commit.lua
-├── action-diff.lua
-├── action-log.lua
-├── action-discard.lua
-├── action-push.lua
-├── action-branch.lua
-├── action-switch.lua
+├── actions.lua           -- 共通操作
+├── file-actions.lua      -- rename／move／delete
+├── git-actions.lua       -- Git固有操作
 ├── tests/                -- Lua外部テストランナーから読む。require対象外
 ├── README.md
 └── LICENSE
@@ -204,38 +206,22 @@ vcs.yazi/
 
 ### 5.3 Backendインターフェース
 
-共通Backendは以下の責務を持つ。
+BackendはCLI仕様生成・出力解析・機能宣言を担当し、操作のロック、確認、通知、状態更新は`actions.lua`／`git-actions.lua`が担当する。
 
 ```lua
 backend = {
-    detect_root = function(url) end,
-    parse_status = function(raw) end,
-    status_command = function(root, paths) end,
-    update = function(root, options) end,
-    commit = function(root, targets, options) end,
-    diff = function(root, targets, options) end,
-    log = function(root, targets, options) end,
-    discard = function(root, targets, options) end,
-
-    capabilities = {
-        push = false,
-        branch = false,
-        switch = false,
-    },
+    capabilities = { push = false, branch = false, switch = false },
+    info_spec = function(root) end,
+    status_spec = function(root, paths, options) end,
+    parse_status_output = function(raw) end,
 }
 ```
 
-Git固有機能は同一テーブル上に実装し、`capabilities`で有効・無効を判定する。初版にあった`git_backend`という別インターフェース定義は`capabilities`と責務が重複するため廃止する。
+Git固有のpush／branch／switchは`core-git.lua`の引数生成と`git-actions.lua`の実行に分離し、`capabilities`で有効・無効を判定する。
 
 ```lua
--- backend-git.lua が capabilities = { push = true, branch = true, switch = true }
--- を宣言したうえで、以下を追加で実装する
-push          = function(root, options) end,
-list_branches = function(root, options) end,
-create_branch = function(root, name, start_point, options) end,
-rename_branch = function(root, old_name, new_name, options) end,
-delete_branch = function(root, name, options) end,
-switch_branch = function(root, name, options) end,
+-- backend-git.lua は capabilities = { push = true, branch = true, switch = true }
+-- を宣言する。Git操作の引数は core-git.lua が生成する。
 ```
 
 ### 5.4 バージョン互換宣言
@@ -354,25 +340,12 @@ Yazi 26.8.15では、operation context snapshot取得時に走査する`tab.sele
 
 **【初版から変更】**
 
-初版は「完全な先頭列がYazi API上困難な場合はlinemode領域への表示を許容する」としていたが、`Entity:children_add(fn, order)`が利用可能であり（`yazi-plugin/preset/components/entity.lua`）、先頭列描画は実現可能である。
-
-Entityの組み込み子要素の`order`は以下のとおり。
-
-```lua
-_children = {
-    { "padding",    id = 1, order = 1000 },
-    { "icon",       id = 2, order = 2000 },
-    { "prefix",     id = 3, order = 3000 },
-    { "highlights", id = 4, order = 4000 },
-    { "found",      id = 5, order = 5000 },
-    { "symlink",    id = 6, order = 6000 },
-}
-```
+初版は先頭列描画を想定していたが、現行実装は`Linemode:children_add`を使用する。これはYaziの標準描画ライフサイクルと現行実装に合わせた受入可能な表示位置である。
 
 要件：
 
-- **`Entity:children_add`に`order < 1000`（既定値500）を指定し、`padding`より前＝行の先頭列に1文字の状態記号を表示する**
-- `order`は設定で変更可能とする
+- `Linemode:children_add`に状態表示を追加し、既存のLinemodeレイアウト内に1文字の状態記号を表示する
+- `status.order`は状態表示のLinemode順序として設定可能とする
 - Git／SVNで意味が共通する状態は同じ記号を使用する
 - SVN固有状態は追加記号として保持する
 - 記号と装飾は設定可能とし、装飾は`th.vcs.*`経由でテーマから上書き可能とする
@@ -478,7 +451,7 @@ XMLから最低限以下を取得する。
 
 外部XMLライブラリへの必須依存は避ける。簡易XMLパーサーを実装する場合は、対象要素と属性を限定し、エスケープ処理（`&amp;` `&lt;` `&gt;` `&quot;` `&apos;`、および数値文字参照）を正しく行う。
 
-> 未検証：本項のSVNコマンドは文書ベースでの確認にとどまる。§26.4 で実機確認すること。
+> SVN CLIの実機挙動は§26.4の受入境界で確認する。Luaのコマンド仕様・XML解析は自動テストで確認する。
 
 ### 8.6 ディレクトリ状態集約
 
@@ -550,6 +523,8 @@ end
 
 専用モジュール内部（例: `Fetcher.retry`）は、CLI呼び出しやState書き込みが済んだ後で、`job.files`全件に対して`coroutine.yield`するだけの責務に限定する。
 
+`State.vcs_info` は無期限に固定しない。`info.refresh_ms`（既定値5000ミリ秒）以上経過した次回のstatus refreshでは、Git branch／revisionまたはSVN URLを再取得する。`plugin vcs -- status`の明示的なrefreshでrootのStateが消去された場合は、経過時間に関係なく再取得する。metadata取得に失敗した場合は既存値を保持し、次回の期限到達時に再試行する。
+
 ```lua
 -- 専用モジュール内部の実装例。CLI呼び出し・parse・State書き込みは
 -- 呼び出し側（VCS status refresh層）で完了済みという前提に立つ。
@@ -579,8 +554,12 @@ CLI呼び出し（batched status取得）と`coroutine.yield`のループを1つ
 #### 8.7.3 state構造
 
 ```lua
-st.dirs  = { [dir] = root }              -- ディレクトリ→VCSルートの逆引き
-st.roots = { [root] = { kind = "git"|"svn", files = { [relpath] = code } } }
+st.dirs         = { [dir] = root }       -- ディレクトリ→VCSルートの逆引き
+st.roots        = { [root] = { [relpath] = status } }
+st.vcs_info     = { [root] = metadata }  -- branch、revision、SVN URLなど
+st.vcs_info_refresh_at = { [root] = timestamp } -- metadata query attempt time
+st.actions      = { [root] = true }      -- root単位の操作ロック
+st.vcs_spot_*   = ...                    -- VCS Log Spotの一時状態
 ```
 
 #### 8.7.4 明示的な破棄
@@ -906,7 +885,7 @@ git restore -- <targets...>
 - `git clean`
 - `git revert <commit>`
 
-未追跡ファイルを対象に含めた場合、`git restore`は`pathspec did not match any file(s) known to git`（終了コード1）で失敗することを実測で確認済み。事前に未追跡ファイルを対象から除外し、除外した旨を通知する。
+未追跡ファイルを対象に含めた場合、`git restore`は`pathspec did not match any file(s) known to git`（終了コード1）で失敗することを実測で確認済み。取得済みstatusでは未追跡／ignoredを事前に除外し、除外した旨を通知する。status cacheに対象がない場合は、破壊的な削除を推測で行わず、VCSコマンドの失敗を通知して停止する。
 
 ### 14.3 SVN
 
@@ -1000,6 +979,8 @@ remote選択後：
 git push --set-upstream <remote> <branch>
 ```
 
+設定された`git.push.default_remote`が一覧に存在する場合は確認ダイアログを省略してそのremoteを使用する。設定値がない、または複数remoteから一意に選べない場合だけ入力を求める。単一remoteの場合はそのremoteを自動選択する。
+
 ```lua
 git = {
     push = {
@@ -1073,6 +1054,8 @@ git switch -c <new-branch> [<start-point>]
 - 開始点
 - 作成後に切り替えるか
 
+開始点は任意入力だが、空でない場合は`@`または`-`始まりを拒否する。開始点を未検証のままGit引数の先頭位置へ渡してはならない。
+
 ### 16.3 Branch名検証
 
 ```bash
@@ -1081,7 +1064,7 @@ git check-ref-format --branch <branch-name>
 
 - 終了コード0で有効、非0で無効と判定する
 - **注意**：`--branch`は単なる検証ではなく`@{-1}`等の相対参照を**展開**する。ユーザー入力が`@`または`-`で始まる場合は、CLIを呼ぶ前にプラグイン側で拒否する
-- 検証失敗時は作成しない
+- 検証失敗時は作成しない。開始点と名称変更元branchも、空値以外は`@`または`-`始まりを拒否してからCLIへ渡す。
 
 ### 16.4 Branch名称変更
 
@@ -1097,7 +1080,7 @@ git branch -m <new-name>
 git branch -m <old-name> <new-name>
 ```
 
-名称変更前に新Branch名を §16.3 で検証する。
+名称変更前に新Branch名と旧Branch名を §16.3 の入力検証で確認する。
 
 ### 16.5 Branch削除
 
@@ -1208,61 +1191,61 @@ VCS
 
 `v`始まりのchordをprependすると、Yaziが後続キーを待つため**単独の`v`が事実上使用不能になる**。§7 が「選択中の複数ファイル」を第一優先の操作対象としている以上、その選択手段を潰すことになる。
 
-Yazi既定の`v`単独操作を潰さないことを優先し、プレフィックスは設定例ごとに明示する。標準例は`<C-g>`、READMEとユーザーマニュアルの短い例は`g`→`v`とする。プラグイン内部へキーを固定しない。
+Yazi既定の`v`単独操作を潰さないことを優先し、標準例は`g`→`v`のプレフィックスとする。プラグイン内部へキーを固定しない。
 
 ```toml
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "s" ]
+on   = [ "g", "v", "r" ]
 run  = "plugin vcs -- status"
 desc = "Refresh VCS status"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "u" ]
+on   = [ "g", "v", "u" ]
 run  = "plugin vcs -- update"
 desc = "VCS update"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "c" ]
+on   = [ "g", "v", "c" ]
 run  = "plugin vcs -- commit"
 desc = "VCS commit"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "d" ]
+on   = [ "g", "v", "d" ]
 run  = "plugin vcs -- diff"
 desc = "VCS diff"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "D" ]
+on   = [ "g", "v", "D" ]
 run  = "plugin vcs -- diff --external"
 desc = "External VCS diff"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "l" ]
+on   = [ "g", "v", "l" ]
 run  = "plugin vcs -- log"
 desc = "VCS log"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "L" ]
+on   = [ "g", "v", "L" ]
 run  = "plugin vcs -- log --external"
 desc = "External VCS log"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "r" ]
+on   = [ "g", "v", "x" ]
 run  = "plugin vcs -- discard"
 desc = "Discard local changes"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "g", "p" ]
+on   = [ "g", "v", "p" ]
 run  = "plugin vcs -- push"
 desc = "Git push"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "g", "b" ]
+on   = [ "g", "v", "b" ]
 run  = "plugin vcs -- branch"
 desc = "Git branches"
 
 [[mgr.prepend_keymap]]
-on   = [ "<C-g>", "g", "s" ]
+on   = [ "g", "v", "w" ]
 run  = "plugin vcs -- switch"
 desc = "Git switch branch"
 ```
@@ -1287,7 +1270,6 @@ Yaziは位置引数と`--name` / `--name=value`形式の名前付き引数のみ
 ```lua
 require("vcs"):setup({
     detection = {
-        walk_to_parent = true,
         priority = { "git", "svn" },
     },
 
@@ -1307,7 +1289,7 @@ require("vcs"):setup({
     },
 
     status = {
-        order = 500,                    -- Entity children order。1000未満で先頭列
+        order = 500,                    -- Linemode children order
         aggregate_directories = true,
         ignore_externals = true,
     },
@@ -1378,7 +1360,7 @@ require("vcs"):setup({
 初版からの差分：
 
 - `status.cache`、`status.debounce_ms`を削除（fetcher機構が担う。§8.7）
-- `status.order`を追加（§8.1）
+- `status.order`を追加（Linemodeの状態表示順序、§8.1）
 - `commit.auto_stage_git`を`commit.git_mode`へ置換（§11.2）
 - `log.git_cli_all`を追加（§13.2）
 - `runner.timeout_ms`を追加（§21.1）
@@ -1391,7 +1373,7 @@ require("vcs"):setup({
 
 ### 21.1 共通要件
 
-- shell文字列を組み立てて実行しない
+- shell文字列を組み立てて実行しない（ただしGitのネイティブeditor／pager等を起動する`Runner.launch`の引用済み表示用コマンドは例外）
 - `Command(name):arg({...})`でコマンド名と引数配列を分離する
 - 標準出力を取得する（`Command.PIPED`）
 - 標準エラーを取得する（`Command.PIPED`）
@@ -1435,7 +1417,7 @@ permit:drop()
 
 ### 21.3 ログ
 
-デバッグ設定が有効な場合、`ya.dbg`で以下を記録する。
+構造化されたコマンド監査ログ（コマンド、引数、cwd、終了コード、実行時間、stderrのマスキング）は現行スコープでは未実装とし、Issue #73の後続対応へ延期する。現行実装の`VCS_YAZI_TRACE=1`は限定的な操作トレースに留め、認証情報を意図的に出力しない。
 
 - 実行コマンド
 - 引数
@@ -1444,7 +1426,7 @@ permit:drop()
 - 実行時間
 - 標準エラー
 
-認証情報、トークン、パスワードはログに出力しない。標準エラーにこれらが含まれうる場合は、既知のパターンをマスクする。
+認証情報、トークン、パスワードはログに出力しない。構造化stderrのマスキングは後続Issueで設計・実装する。
 
 ---
 
@@ -1638,9 +1620,9 @@ svn checkout "file://<tmp>/repo" <tmp>/wc
 - 外部diff
 - 外部ログビューア
 
-### 26.4 実装着手前の事前検証（新設）
+### 26.4 SVN実機検証の残課題
 
-本改訂の検証環境にSVN CLIが未導入であったため、以下は未確認である。実装着手前に実機で確認し、結果を本書へ反映すること。
+SVNの解析・コマンド構築はテスト済みだが、SVN CLIを使うWindows実機の受入は未完了である。以下を実機で確認し、結果を本書へ反映すること。
 
 1. `svn status --xml --no-ignore --ignore-externals`がignoredを`item="ignored"`として出力すること
 2. `svn info --show-item wc-root`が対象SVNバージョンで利用可能であること
@@ -1708,7 +1690,7 @@ READMEに以下を記載する。
 
 **【初版から変更】**
 
-初版のPhase 1はCommit（ターミナル占有＋一時ファイル＋エディタのライフサイクル）とDiscard（破壊的操作＋確認UX）を含み、MVPとして過大であった。「表示が動く」ところで一度区切る。
+初版のPhase 1はCommit（ターミナル占有とエディタのライフサイクル）とDiscard（破壊的操作＋確認UX）を含み、MVPとして過大であった。「表示が動く」ところで一度区切る。
 
 ### Phase 1：Status MVP
 
@@ -1716,7 +1698,7 @@ READMEに以下を記載する。
 - fetcher登録と`fetch`実装（§8.7）
 - Git status解析（rename NULフィールドを含む。§8.4）
 - SVN status XML解析（§8.5）
-- `Entity:children_add`による先頭列記号表示（§8.1）
+- `Linemode:children_add`による状態記号表示（§8.1）
 - ディレクトリ状態集約（§8.6）
 - 手動status refresh（§9）
 - 基本エラー通知（§23）
@@ -1729,7 +1711,7 @@ READMEに以下を記載する。
 - 外部コマンド実行基盤（§21。タイムアウト含む）
 - ターミナル占有機構（§21.2）
 - Update
-- Commit（任意エディタ、一時ファイル）
+- Commit（VCSネイティブeditor。一時ファイルは作成しない）
 - CLI Diff（任意pager）
 - CLI Log
 - Discard changes（確認UX）
@@ -1758,7 +1740,7 @@ READMEに以下を記載する。
 以下をすべて満たした場合、初期リリース（Phase 3完了時点）を受入可能とする。
 
 1. GitリポジトリとSVN作業コピーを自動判定できる
-2. Git／SVNの主要状態をファイル一覧の**先頭列**へ記号表示できる
+2. Git／SVNの主要状態を現行Linemodeへ記号表示できる
 3. ignoredを含む §8.2 の全状態を表示できる
 4. renameされたファイルの状態を正しく解析・表示できる
 5. ディレクトリへ配下の状態を集約表示できる
@@ -1766,7 +1748,7 @@ READMEに以下を記載する。
 7. Gitで`git pull --ff-only`を実行できる
 8. SVNで`svn update`を実行できる
 9. Commitメッセージを任意エディタで編集できる
-10. Commitのstage挙動が §11.2 のとおりであり、選択外のstage済み変更を巻き込まない
+10. Commitのstage挙動が §11.2 のとおりであり、staged modeでは選択外を含むindex全体をcommitすることを確認文に明示する
 11. DiffとLogをCLI／pagerで確認できる
 12. 外部Diff／Logコマンドを設定可能である
 13. Discard前に確認が行われる

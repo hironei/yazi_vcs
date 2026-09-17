@@ -19,6 +19,15 @@ function M.parse_svn(url)
 	return { url = trim(url) }
 end
 
+---@param last integer|nil
+---@param now integer
+---@param interval integer
+---@return boolean
+function M.refresh_due(last, now, interval)
+	interval = tonumber(interval) or 0
+	return interval <= 0 or not last or now - last >= interval
+end
+
 local function relative_path(relpath)
 	relpath = tostring(relpath or ""):gsub("\\\\", "/"):gsub("^/+", "")
 	return relpath == "." and "" or relpath

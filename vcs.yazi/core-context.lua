@@ -80,13 +80,18 @@ function M.build_snapshot(selected_entries, current_files, cwd, search)
 	return { selected = selected, cwd = cwd, info = info, search = search == true }
 end
 
-local function file_source(entry)
+local function file_source(entry, current_info)
 	local path = M.resolve_url(entry)
 	if not path then return nil end
+	local is_dir = directory_flag(entry)
+	if is_dir == nil and current_info then
+		local current = field(current_info[path], "is_dir")
+		if type(current) == "boolean" then is_dir = current end
+	end
 	return {
 		path = path,
 		-- Preserve unknown until the async wrapper can inspect the filesystem.
-		is_dir = directory_flag(entry),
+		is_dir = is_dir,
 		search = M.is_search(entry),
 	}
 end
@@ -94,10 +99,10 @@ end
 --- Capture plain filesystem-item records from Yazi's selected/hovered values.
 ---@param entries table
 ---@return table[]
-function M.build_file_sources(entries)
+function M.build_file_sources(entries, current_info)
 	local sources = {}
 	for _, entry in pairs(entries or {}) do
-		local source = file_source(entry)
+		local source = file_source(entry, current_info)
 		if source then sources[#sources + 1] = source end
 	end
 	table.sort(sources, function(left, right) return left.path < right.path end)
@@ -122,9 +127,14 @@ end
 ---@param tabs table
 ---@param active_index integer
 ---@return table
-function M.build_file_operation_context(selected_entries, hovered_entry, active_cwd, tabs, active_index)
-	local selected = M.build_file_sources(selected_entries)
-	local hovered = file_source(hovered_entry)
+function M.build_file_operation_context(selected_entries, hovered_entry, active_cwd, tabs, active_index, active_files)
+	local current_info = {}
+	for _, entry in ipairs(active_files or {}) do
+		local path = M.resolve_url(entry)
+		if path then current_info[path] = field(entry, "cha") end
+	end
+	local selected = M.build_file_sources(selected_entries, current_info)
+	local hovered = file_source(hovered_entry, current_info)
 	local other_index = M.other_tab_index(#tabs, active_index)
 	local other = other_index and tabs[other_index] or nil
 	local other_current = other and other.current or nil
@@ -154,7 +164,8 @@ local capture_file_operation_snapshot = ya.sync(function()
 		active.current.hovered,
 		active.current.cwd,
 		cx.tabs,
-		cx.tabs.idx
+		cx.tabs.idx,
+		active.current.files
 	)
 end)
 

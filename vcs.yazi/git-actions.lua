@@ -25,7 +25,7 @@ local function run(root, args, cfg)
 end
 
 local function fail(operation, output, err)
-	Notify.error("%s failed: %s", operation, Runner.error_text(output, err))
+	Notify.error("%s failed: %s", operation, Runner.summary(Runner.error_text(output, err), 240))
 end
 
 local function with_lock(root, operation, fn)
@@ -77,34 +77,6 @@ local function branch_data(root, cfg, include_remote)
 	return Git.parse_branches(output.stdout), output.stdout
 end
 
-local function temp_output_file(content)
-	local temp_path, path_err = Temp.path("vcs-output")
-	if not temp_path then return nil, path_err end
-	local url = Url(temp_path)
-	local path = tostring(url)
-	local ok, err = fs.write(url, content or "")
-	if not ok then return nil, err end
-	return path
-end
-
-local function display_output(content, cfg)
-	local file, err = temp_output_file(content)
-	if not file then return nil, err end
-	local viewer = cfg.pager and cfg.pager.command and cfg.pager.command ~= "" and cfg.pager or cfg.editor
-	if not viewer or not viewer.command or viewer.command == "" then
-		fs.remove("file", Url(file))
-		return nil, "pager/editor is not configured"
-	end
-	local args = {}
-	for _, value in ipairs(viewer.args or {}) do args[#args + 1] = value end
-	args[#args + 1] = file
-	local status, command_err = Runner.interactive({ command = viewer.command, args = args })
-	fs.remove("file", Url(file))
-	if not status then return nil, command_err end
-	if not status.success then return nil, "viewer exited with code " .. tostring(status.code or "unknown") end
-	return true
-end
-
 function M.push()
 	local cfg = Config.get()
 	local scope = root_for_git(cfg)
@@ -114,7 +86,7 @@ function M.push()
 		local branch_output, branch_err = run(root, Git.current_branch_args(), cfg)
 		local branch = branch_output and branch_output.status.success and branch_output.stdout:gsub("%s+$", "") or ""
 		if not branch or branch == "" then
-			return Notify.error("Git push is unavailable in detached HEAD state: %s", Runner.error_text(branch_output, branch_err))
+			return Notify.error("Git push is unavailable in detached HEAD state: %s", Runner.summary(Runner.error_text(branch_output, branch_err), 240))
 		end
 
 		local upstream_output, upstream_err = run(root, Git.upstream_args(), cfg)
@@ -157,7 +129,7 @@ end
 local function branch_list(root, cfg)
 	local branches, raw = branch_data(root, cfg, cfg.git.branch.show_remote ~= false)
 	if not branches then return end
-	local ok, err = display_output(raw, cfg)
+	local ok, err = Temp.display(raw, cfg, Runner)
 	if not ok then Notify.error("Branch list could not be displayed: %s", err) end
 end
 
@@ -165,6 +137,10 @@ local function branch_create(root, cfg, switch_after)
 	local name = ask("New branch name:")
 	if not name or not validate_name(root, name, cfg) then return end
 	local start = ask("Start point (optional):")
+	if start and start ~= "" then
+		local valid, reason = Git.validate_ref_input(start, "start point")
+		if not valid then return Notify.error("Invalid start point: %s", reason) end
+	end
 	local args = Git.create_branch_args(name, start, switch_after)
 	local output, err = run(root, args, cfg)
 	if not output or not output.status.success then return fail("Branch create", output, err) end
@@ -172,6 +148,10 @@ local function branch_create(root, cfg, switch_after)
 end
 
 local function branch_rename(root, cfg, old_name)
+	if old_name and old_name ~= "" then
+		local valid, reason = Git.validate_ref_input(old_name, "old branch name")
+		if not valid then return Notify.error("Invalid old branch name: %s", reason) end
+	end
 	local new_name = ask("New branch name:")
 	if not new_name or not validate_name(root, new_name, cfg) then return end
 	local args = Git.rename_branch_args(old_name, new_name)

@@ -343,7 +343,7 @@ luac -p *.lua tests/*.lua
 
 Lua単体テスト、Gitローカルbare repository結合テスト、外部設定展開テストを含みます。実Yazi UI、認証入力、Windows GUI、WSL／Git Bashの実環境、SVN実CLIは別途確認が必要です。
 
-設定のマップは既定値へ深くマージされますが、配列（コマンド引数や`editor.args`／`pager.args`）は指定した配列全体で置き換えられます。非対話型のstatus、Diff、Log、メタデータ取得には`runner.timeout_ms`が適用されます。
+設定のマップは既定値へ深くマージされますが、配列（コマンド引数や`editor.args`／`pager.args`）は指定した配列全体で置き換えられます。非対話型のstatus、Diff、Log、メタデータ取得には`runner.timeout_ms`が適用されます。Git branch／revisionとSVN URLは`info.refresh_ms`（既定5000ミリ秒）で再取得されます。
 
 ## VCS Changes View
 
