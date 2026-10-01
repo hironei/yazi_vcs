@@ -22,6 +22,46 @@ return function(t)
 		"mask_text removes Basic authorization values"
 	)
 	t.eq(
+		runner.mask_text("Authorization: Bearer bearer-secret\nremote: unrelated diagnostic context\nfinished"),
+		"Authorization: [REDACTED]\nremote: unrelated diagnostic context\nfinished",
+		"mask_text stops Authorization masking at line boundaries"
+	)
+	t.eq(
+		runner.mask_text("Authorization: Bearer bearer-secret\r\nremote: unrelated diagnostic context\r\nfinished"),
+		"Authorization: [REDACTED]\r\nremote: unrelated diagnostic context\r\nfinished",
+		"mask_text stops Authorization masking before CRLF line endings"
+	)
+	t.eq(
+		runner.mask_text("Authorization:\nremote: unrelated diagnostic context"),
+		"Authorization:[REDACTED]\nremote: unrelated diagnostic context",
+		"mask_text does not consume the line after an empty Authorization header"
+	)
+	t.eq(
+		runner.mask_text("Authorization:\r\nremote: unrelated diagnostic context"),
+		"Authorization:[REDACTED]\r\nremote: unrelated diagnostic context",
+		"mask_text does not consume the CRLF line after an empty Authorization header"
+	)
+	t.eq(
+		runner.mask_text("Authorization: Token token-secret, safe;next&tail\ncontext"),
+		"Authorization: [REDACTED], safe;next&tail\ncontext",
+		"mask_text preserves safe Authorization delimiters and following lines"
+	)
+	t.eq(
+		runner.mask_text('Authorization: Digest username="alice", realm="private-realm", nonce="nonce-secret", uri="/private", response="digest-response", opaque="opaque-secret"\nremote: unrelated diagnostic context'),
+		"Authorization: Digest [REDACTED], [REDACTED], [REDACTED], [REDACTED], [REDACTED], [REDACTED]\nremote: unrelated diagnostic context",
+		"mask_text removes the complete comma-separated Digest authorization value while preserving delimiters"
+	)
+	t.eq(
+		runner.mask_text('aUtHoRiZaTiOn: dIgEsT UsErNaMe="mixed-user", ReAlM="mixed-realm", ReSpOnSe="mixed-response"\r\nremote: unrelated diagnostic context'),
+		"aUtHoRiZaTiOn: dIgEsT [REDACTED], [REDACTED], [REDACTED]\r\nremote: unrelated diagnostic context",
+		"mask_text recognizes mixed-case Authorization Digest headers and preserves CRLF"
+	)
+	t.eq(
+		runner.mask_text("Authorization: Digest \r\nremote: unrelated diagnostic context"),
+		"Authorization: Digest \r\nremote: unrelated diagnostic context",
+		"mask_text preserves an empty Digest value and the following CRLF line"
+	)
+	t.eq(
 		runner.mask_text("git -c http.extraHeader=Authorization: Token token-secret"),
 		"git -c http.extraHeader=Authorization: [REDACTED]",
 		"mask_text removes arbitrary authorization schemes in http.extraHeader arguments"
@@ -30,6 +70,11 @@ return function(t)
 		runner.mask_args({ "-c", "http.extraHeader=Authorization: Negotiate negotiate-secret" }),
 		{ "-c", "http.extraHeader=Authorization: [REDACTED]" },
 		"mask_args removes arbitrary authorization schemes in a Git config argument"
+	)
+	t.deep_eq(
+		runner.mask_args({ "-c", 'http.extraHeader=Authorization: Digest username="git-user", realm="git-realm", nonce="git-nonce", uri="/repo", response="git-response"' }),
+		{ "-c", "http.extraHeader=Authorization: Digest [REDACTED], [REDACTED], [REDACTED], [REDACTED], [REDACTED]" },
+		"mask_args removes Digest parameters embedded in a Git extraHeader argument"
 	)
 	t.eq(runner.mask_text("basic usage: use --help"), "basic usage: use --help", "mask_text leaves ordinary Basic text unchanged")
 	t.eq(

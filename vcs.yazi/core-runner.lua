@@ -41,16 +41,25 @@ function M.mask_text(text)
 	-- Remove URL userinfo as a unit, including both username and password.
 	text = text:gsub("([%a][%w+.-]*://)([^/%s]+)@", "%1" .. REDACTED .. "@")
 	-- Authorization may use Basic, Bearer, Token, Negotiate, or another
-	-- scheme. Mask the complete header value through the next delimiter.
-	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])(%s*:%s*)([^,;&]*)", function(key, separator)
-		return key .. separator .. REDACTED
+	-- scheme. Keep the value on its line, and consume the whole Digest value
+	-- because its sensitive parameters are comma-separated.
+	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])([ \t]*:[ \t]*)([^\r\n]*)", function(key, separator, value)
+		local digest_prefix = value:match("^([Dd][Ii][Gg][Ee][Ss][Tt]%s+)")
+		if digest_prefix then
+			local parameters = value:sub(#digest_prefix + 1):gsub("([^,;&]+)", function(parameter)
+				return (parameter:match("^%s*") or "") .. REDACTED
+			end)
+			return key .. separator .. digest_prefix .. parameters
+		end
+		local delimiter = value:find("[,;&]")
+		return key .. separator .. REDACTED .. (delimiter and value:sub(delimiter) or "")
 	end)
 	-- Bearer credentials do not necessarily have a key/value separator.
 	text = text:gsub("([Bb][Ee][Aa][Rr][Ee][Rr]%s+)([^%s,;]+)", "%1" .. REDACTED)
 	-- Cover query strings, environment-like assignments, and header-like text.
 	text = text:gsub("([%w_%-]+)(%s*[:=]%s*)([^%s,;&]+)", function(key, separator, value)
 		local authorization_scheme = normalized_credential_key(key) == "authorization"
-			and (value:lower() == "bearer" or value:lower() == "basic")
+			and (value:lower() == "bearer" or value:lower() == "basic" or value:lower() == "digest")
 		return is_credential_key(key) and not authorization_scheme and key .. separator .. REDACTED or key .. separator .. value
 	end)
 	return text
