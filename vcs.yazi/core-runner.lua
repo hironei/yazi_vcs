@@ -33,6 +33,330 @@ local function is_credential_key(key)
 		or normalized:find("authorization", 1, true) ~= nil
 end
 
+local function has_credential_assignment(text)
+	for key in text:gmatch("([%w_%-]+)%s*[:=]") do
+		if is_credential_key(key) then return true end
+	end
+	return false
+end
+
+local function is_dotted_diagnostic_parameter(parameter)
+	return parameter:match("^%s*[%w_%-][%w_.%-]*%.[%w_.%-]+%s*:%s*%S") ~= nil
+		and not has_credential_assignment(parameter)
+end
+
+local function unescape_diagnostic_text(parameter)
+	local content = parameter:match('^%s*"(.*)"%s*$')
+	local quote = content ~= nil and '"' or nil
+	if content == nil then
+		content = parameter:match("^%s*'(.*)'%s*$")
+		quote = content ~= nil and "'" or nil
+	end
+	if content == nil then content = parameter end
+
+	local output, position = {}, 1
+	while position <= #content do
+		local char = content:sub(position, position)
+		if char == "\\" then
+			local escaped = content:sub(position + 1, position + 1)
+			if escaped ~= "\\" and escaped ~= '"' and escaped ~= "'" then return nil end
+			output[#output + 1] = escaped
+			position = position + 2
+		elseif quote and char == quote then
+			return nil
+		else
+			output[#output + 1] = char
+			position = position + 1
+		end
+	end
+	return table.concat(output)
+end
+
+local function is_unlabelled_diagnostic_parameter(parameter, previous, following, has_preceding_parameter)
+	if not following or (not previous and not has_preceding_parameter) then return false end
+	if previous and not previous:match("^%s*[%w_.%-]+%s*=") then return false end
+	if not following:match("^%s*[%w_.%-]+%s*=") then return false end
+	local content = unescape_diagnostic_text(parameter)
+	if not content or not content:find("%s") then return false end
+	for position = 1, #content do
+		local char = content:sub(position, position)
+		if not char:match("%w") and not char:match("%s") and char ~= "_" and char ~= "'" and char ~= '"'
+			and char ~= "." and char ~= "-" and char ~= "\\" then return false end
+	end
+	local lower = content:lower():gsub("api[_%-]key", "apikey")
+	for _, sensitive_word in ipairs({ "password", "passwd", "pwd", "token", "secret", "apikey", "auth", "bearer", "basic", "digest", "nonce", "response", "username", "realm", "opaque" }) do
+		if lower:match("%f[%w]" .. sensitive_word .. "%f[%W]") then return false end
+	end
+	return true
+end
+
+local AUTHORIZATION_NAME = "authorization"
+local authorization_delimiters
+local DIGEST_PARAMETER_KEYS = {
+	username = true,
+	user = true,
+	userhash = true,
+	realm = true,
+	nonce = true,
+	uri = true,
+	response = true,
+	algorithm = true,
+	cnonce = true,
+	opaque = true,
+	qop = true,
+	nc = true,
+	charset = true,
+}
+
+-- Lex one bounded line or value span once, sharing quote and escape rules for
+-- single- and double-quoted diagnostics and Digest parameters.
+local function lex_line(text, initial_quote)
+	local states, delimiters, delimiter_lookup = {}, {}, {}
+	local quote, quote_start, escaped = initial_quote, initial_quote and 0 or nil, false
+	for position = 1, #text do
+		local char = text:sub(position, position)
+		local state = { quote = quote, quote_start = quote_start, opening = false, closing = false }
+		if quote then
+			if escaped then
+				escaped = false
+			elseif char == "\\" then
+				escaped = true
+			elseif char == quote then
+				state.closing = true
+				quote, quote_start = nil, nil
+			end
+		elseif char == '"' or (char == "'" and not text:sub(position - 1, position - 1):match("%w")) then
+			state.opening = true
+			quote, quote_start = char, position
+		elseif char == "," or char == ";" or char == "&" then
+			delimiters[#delimiters + 1] = position
+			delimiter_lookup[position] = true
+		end
+		states[position] = state
+	end
+	return { states = states, delimiters = delimiters, delimiter_lookup = delimiter_lookup, quote = quote }
+end
+
+local function has_digest_parameter_after(line, start, quote_character)
+	local delimiters = authorization_delimiters(line, start, #line + 1, quote_character)
+	for _, separator in ipairs(delimiters) do
+		local parameter_start = separator + 1
+		while line:sub(parameter_start, parameter_start) == " " or line:sub(parameter_start, parameter_start) == "\t" do
+			parameter_start = parameter_start + 1
+		end
+		local parameter = line:sub(parameter_start)
+		local key = parameter:match("^([%w_.%-]+)%s*=")
+		if key and DIGEST_PARAMETER_KEYS[key:lower()] == true then return true end
+	end
+	return false
+end
+
+local function find_authorization_headers(line)
+	local headers, position = {}, 1
+	local lex = lex_line(line)
+	local current_header, quote_allows_authorization = nil, false
+	while position <= #line do
+		local char = line:sub(position, position)
+		local state = lex.states[position]
+		local in_quotes = state.quote ~= nil
+		local is_authorization = line:sub(position, position + #AUTHORIZATION_NAME - 1):lower() == AUTHORIZATION_NAME
+		if is_authorization and (not in_quotes or #headers == 0 or quote_allows_authorization) then
+			local separator = position + #AUTHORIZATION_NAME
+			while line:sub(separator, separator) == " " or line:sub(separator, separator) == "\t" do
+				separator = separator + 1
+			end
+			if line:sub(separator, separator) == ":" then
+				local value_start = separator + 1
+				while line:sub(value_start, value_start) == " " or line:sub(value_start, value_start) == "\t" do
+					value_start = value_start + 1
+				end
+				local digest_parent = current_header and (current_header.digest_parent
+					or (current_header.is_digest
+						and ((in_quotes and quote_allows_authorization)
+							or current_header.diagnostic_context_seen
+							or (not in_quotes and current_header.digest_parameter_seen and has_digest_parameter_after(line, value_start, false)))
+						and current_header)) or nil
+				current_header = {
+					start = position,
+					value_start = value_start,
+					quoted_context = in_quotes,
+					quote_character = state.quote,
+					quote_wrapper = state.quote_start,
+					digest_parent = digest_parent,
+					is_digest = line:sub(value_start):match("^([Dd][Ii][Gg][Ee][Ss][Tt]%s+)") ~= nil,
+					digest_parameter_seen = false,
+					delimiter_seen = false,
+					delimiter_segment_start = value_start,
+				}
+				headers[#headers + 1] = current_header
+				quote_allows_authorization = false
+				position = value_start
+			else
+				position = position + 1
+			end
+		elseif state.closing then
+			if current_header and current_header.quoted_context and not current_header.wrapper_close
+				and current_header.quote_wrapper == state.quote_start then
+				current_header.wrapper_close = position
+			end
+			quote_allows_authorization = false
+			position = position + 1
+		elseif state.opening then
+			if current_header then
+				-- Ordinary scheme delimiters end its value; Digest delimiters may still separate parameters.
+				if current_header.is_digest then
+					local segment = line:sub(current_header.delimiter_segment_start, position - 1)
+					quote_allows_authorization = current_header.delimiter_seen and segment:match("^%s*[%w_.%-]+%s*:") ~= nil
+				else
+					quote_allows_authorization = current_header.delimiter_seen
+				end
+			end
+			position = position + 1
+		elseif lex.delimiter_lookup[position] then
+			if current_header then
+				if current_header.is_digest then
+					local segment = line:sub(current_header.delimiter_segment_start, position - 1)
+					local digest_parameter = segment:gsub("^[Dd][Ii][Gg][Ee][Ss][Tt]%s+", "")
+					if digest_parameter:match("^%s*[%w_.%-]+%s*=") then current_header.digest_parameter_seen = true end
+					if is_dotted_diagnostic_parameter(segment) then current_header.diagnostic_context_seen = true end
+				end
+				current_header.delimiter_seen = true
+				current_header.delimiter_segment_start = position + 1
+			end
+			position = position + 1
+		else
+			position = position + 1
+		end
+	end
+	return headers
+end
+
+authorization_delimiters = function(line, start, stop, quote_character)
+	local delimiters = {}
+	local span = line:sub(start, stop - 1)
+	if quote_character == false then quote_character = nil end
+	local lex = lex_line(span, quote_character)
+	for _, position in ipairs(lex.delimiters) do
+		delimiters[#delimiters + 1] = start + position - 1
+	end
+	return delimiters
+end
+
+local function mask_digest_value(value, has_preceding_parameter)
+	local digest_prefix = value:match("^([Dd][Ii][Gg][Ee][Ss][Tt]%s+)")
+	if not digest_prefix then return nil end
+	local parameter_text = value:sub(#digest_prefix + 1)
+	local lex = lex_line(parameter_text)
+	local segments, delimiters, segment_start = {}, {}, 1
+	for _, delimiter in ipairs(lex.delimiters) do
+		segments[#segments + 1] = parameter_text:sub(segment_start, delimiter - 1)
+		delimiters[#delimiters + 1] = parameter_text:sub(delimiter, delimiter)
+		segment_start = delimiter + 1
+	end
+	segments[#segments + 1] = parameter_text:sub(segment_start)
+	local meaningful = {}
+	for index, parameter in ipairs(segments) do
+		if parameter:match("%S") then meaningful[#meaningful + 1] = index end
+	end
+	local meaningful_position = {}
+	for index, segment_index in ipairs(meaningful) do meaningful_position[segment_index] = index end
+	local output = {}
+	for segment_index, parameter in ipairs(segments) do
+		local position = meaningful_position[segment_index]
+		if not position then
+			output[#output + 1] = parameter
+		else
+			local previous = meaningful[position - 1] and segments[meaningful[position - 1]]
+			local following = meaningful[position + 1] and segments[meaningful[position + 1]]
+			if is_dotted_diagnostic_parameter(parameter)
+				or is_unlabelled_diagnostic_parameter(
+					parameter,
+					previous,
+					following,
+					has_preceding_parameter and position == 1
+				) then
+				output[#output + 1] = parameter
+			else
+				output[#output + 1] = (parameter:match("^%s*") or "") .. REDACTED
+			end
+		end
+		if delimiters[segment_index] then output[#output + 1] = delimiters[segment_index] end
+	end
+	return digest_prefix .. table.concat(output)
+end
+
+local function mask_authorization_line(line)
+	local headers = find_authorization_headers(line)
+	if #headers == 0 then return line end
+
+	local output, cursor = {}, 1
+	for index, header in ipairs(headers) do
+		local next_header = headers[index + 1]
+		local value_end = #line + 1
+		local value = line:sub(header.value_start, next_header and next_header.start - 1 or #line)
+		local is_digest = mask_digest_value(value) ~= nil
+		if next_header then
+			local delimiters = authorization_delimiters(line, header.value_start, next_header.start, header.quote_character)
+			if is_digest then
+				value_end = delimiters[#delimiters] or next_header.start
+			else
+				value_end = delimiters[1] or next_header.start
+			end
+		else
+			if not is_digest then
+				local delimiters = authorization_delimiters(line, header.value_start, #line + 1, header.quote_character)
+				value_end = delimiters[1] or header.wrapper_close or (#line + 1)
+			else
+				value_end = header.wrapper_close or (#line + 1)
+			end
+		end
+		if header.wrapper_close and header.wrapper_close < value_end then value_end = header.wrapper_close end
+
+		output[#output + 1] = line:sub(cursor, header.value_start - 1)
+		value = line:sub(header.value_start, value_end - 1)
+		output[#output + 1] = mask_digest_value(value) or REDACTED
+		cursor = value_end
+		if header.digest_parent and (not next_header or next_header.digest_parent ~= header.digest_parent) then
+			local tail_start = cursor
+			if header.wrapper_close then
+				output[#output + 1] = line:sub(cursor, header.wrapper_close)
+				tail_start = header.wrapper_close + 1
+			end
+			local tail_end = next_header and next_header.start or (#line + 1)
+			if next_header then
+				local delimiters = authorization_delimiters(line, tail_start, next_header.start, false)
+				tail_end = delimiters[#delimiters] or next_header.start
+			end
+			local digest_tail = line:sub(tail_start, tail_end - 1)
+			local masked_tail = mask_digest_value("Digest " .. digest_tail, true)
+			output[#output + 1] = masked_tail:sub(#"Digest " + 1)
+			cursor = tail_end
+		end
+	end
+	output[#output + 1] = line:sub(cursor)
+	return table.concat(output)
+end
+
+local function mask_authorization_headers(text)
+	local output, position = {}, 1
+	while position <= #text do
+		local line_end = text:find("[\r\n]", position)
+		if not line_end then
+			output[#output + 1] = mask_authorization_line(text:sub(position))
+			position = #text + 1
+		else
+			local terminator_end = line_end
+			if text:sub(line_end, line_end) == "\r" and text:sub(line_end + 1, line_end + 1) == "\n" then
+				terminator_end = line_end + 1
+			end
+			output[#output + 1] = mask_authorization_line(text:sub(position, line_end - 1))
+			output[#output + 1] = text:sub(line_end, terminator_end)
+			position = terminator_end + 1
+		end
+	end
+	return table.concat(output)
+end
+
 --- Mask credential-like values in arbitrary text before it reaches a log.
 ---@param text any
 ---@return string
@@ -41,16 +365,15 @@ function M.mask_text(text)
 	-- Remove URL userinfo as a unit, including both username and password.
 	text = text:gsub("([%a][%w+.-]*://)([^/%s]+)@", "%1" .. REDACTED .. "@")
 	-- Authorization may use Basic, Bearer, Token, Negotiate, or another
-	-- scheme. Mask the complete header value through the next delimiter.
-	text = text:gsub("([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])(%s*:%s*)([^,;&]*)", function(key, separator)
-		return key .. separator .. REDACTED
-	end)
+	-- scheme. Scan each line independently so delimiter-separated headers are
+	-- all masked without consuming CR/LF or unrelated diagnostic context.
+	text = mask_authorization_headers(text)
 	-- Bearer credentials do not necessarily have a key/value separator.
 	text = text:gsub("([Bb][Ee][Aa][Rr][Ee][Rr]%s+)([^%s,;]+)", "%1" .. REDACTED)
 	-- Cover query strings, environment-like assignments, and header-like text.
 	text = text:gsub("([%w_%-]+)(%s*[:=]%s*)([^%s,;&]+)", function(key, separator, value)
 		local authorization_scheme = normalized_credential_key(key) == "authorization"
-			and (value:lower() == "bearer" or value:lower() == "basic")
+			and (value:lower() == "bearer" or value:lower() == "basic" or value:lower() == "digest")
 		return is_credential_key(key) and not authorization_scheme and key .. separator .. REDACTED or key .. separator .. value
 	end)
 	return text
